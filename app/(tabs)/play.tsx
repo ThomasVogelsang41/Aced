@@ -21,6 +21,8 @@ import { useAuthStore } from '../../store/authStore';
 import { useBagStore } from '../../store/bagStore';
 import type { Course } from '../../types/course';
 import { TabHeader } from '../../components/TabHeader';
+import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
+import { DiscSpinner } from '../../components/ui/DiscSpinner';
 
 export default function PlayScreen() {
   const { activeRound } = useRoundStore();
@@ -83,32 +85,44 @@ export default function PlayScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Uniform Top Header */}
-        <TabHeader subtitle="GPS & Smart Caddie" title="Play" />
+        <AnimatedFadeIn delay={0}>
+          <TabHeader subtitle="GPS & Smart Caddie" title="Play" />
+        </AnimatedFadeIn>
 
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color={Colors.gray400} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Filter courses..."
-            placeholderTextColor={Colors.gray400}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        <AnimatedFadeIn delay={100}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={Colors.gray400} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Filter courses..."
+              placeholderTextColor={Colors.gray400}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </AnimatedFadeIn>
 
-        <Typo variant="label" style={styles.sectionLabel}>
-          {isLoading ? 'Finding nearby courses...' : `${filtered.length} Courses`}
-        </Typo>
+        <AnimatedFadeIn delay={180}>
+          {isLoading ? (
+            <DiscSpinner label="Locating nearby courses..." size={36} />
+          ) : (
+            <>
+              <Typo variant="label" style={styles.sectionLabel}>
+                {`${filtered.length} Courses`}
+              </Typo>
 
-        {filtered.map((course) => (
-          <CourseListItem
-            key={course.id}
-            course={course}
-            onPress={() =>
-              router.push({ pathname: '/course/[id]', params: { id: course.id } })
-            }
-          />
-        ))}
+              {filtered.map((course) => (
+                <CourseListItem
+                  key={course.id}
+                  course={course}
+                  onPress={() =>
+                    router.push({ pathname: '/course/[id]', params: { id: course.id } })
+                  }
+                />
+              ))}
+            </>
+          )}
+        </AnimatedFadeIn>
 
         {!isLoading && filtered.length === 0 && (
           <View style={styles.empty}>

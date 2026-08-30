@@ -12,8 +12,9 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/authStore';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Colors } from '../constants/theme';
+import { DiscSpinner } from '../components/ui/DiscSpinner';
 
 // Keep splash screen until fonts + auth are ready
 SplashScreen.preventAutoHideAsync();
@@ -64,7 +65,7 @@ export default function RootLayout() {
   if ((!fontsLoaded && !fontError) || isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={Colors.blue} />
+        <DiscSpinner label="Loading ACED..." size={48} />
       </View>
     );
   }
@@ -72,20 +73,64 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+          fullScreenGestureEnabled: true,
+        }}
+      >
+        <Stack.Screen
+          name="(auth)"
+          options={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+            animation: 'fade',
+          }}
+        />
         <Stack.Screen
           name="round/[id]"
-          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+          options={{
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            presentation: 'fullScreenModal',
+            gestureEnabled: true,
+          }}
         />
         <Stack.Screen
           name="round/scorecard"
-          options={{ headerShown: false, presentation: 'modal' }}
+          options={{
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+            gestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
+          name="round/summary"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+            gestureEnabled: true,
+          }}
         />
         <Stack.Screen
           name="course/[id]"
-          options={{ headerShown: false, presentation: 'card' }}
+          options={{
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+            gestureEnabled: true,
+          }}
         />
       </Stack>
     </QueryClientProvider>

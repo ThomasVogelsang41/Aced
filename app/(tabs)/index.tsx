@@ -15,6 +15,8 @@ import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../consta
 import { useAuthStore } from '../../store/authStore';
 import { useLocation } from '../../hooks/useLocation';
 import { useWeather } from '../../hooks/useWeather';
+import { TabHeader } from '../../components/TabHeader';
+import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
 
 // Demo course images for rich visuals matching mockups
 const MOCK_COURSES = [
@@ -47,8 +49,6 @@ const MOCK_COURSES = [
   },
 ];
 
-import { TabHeader } from '../../components/TabHeader';
-
 export default function HomeScreen() {
   const { user } = useAuthStore();
   const { latitude, longitude } = useLocation();
@@ -64,110 +64,116 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Uniform Top Header with ACED Wordmark Logo */}
-        <TabHeader showLogo subtitle="Welcome back," title={userName} />
+        <AnimatedFadeIn delay={0}>
+          <TabHeader showLogo subtitle="Welcome back," title={userName} />
+        </AnimatedFadeIn>
 
         {/* Start Round Primary CTA */}
-        <TouchableOpacity
-          style={styles.startRoundCard}
-          activeOpacity={0.88}
-          onPress={() => router.push('/(tabs)/play')}
-        >
-          <View style={styles.plusCircle}>
-            <Ionicons name="add" size={24} color={Colors.white} />
-          </View>
-          <View style={styles.startRoundText}>
-            <Typo variant="h3" style={styles.startTitle}>Start round</Typo>
-            <Typo variant="small" style={styles.startSub}>Let's play.</Typo>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.white} />
-        </TouchableOpacity>
+        <AnimatedFadeIn delay={100}>
+          <TouchableOpacity
+            style={styles.startRoundCard}
+            activeOpacity={0.88}
+            onPress={() => router.push('/(tabs)/play')}
+          >
+            <View style={styles.plusCircle}>
+              <Ionicons name="add" size={24} color={Colors.white} />
+            </View>
+            <View style={styles.startRoundText}>
+              <Typo variant="h3" style={styles.startTitle}>Start round</Typo>
+              <Typo variant="small" style={styles.startSub}>Let's play.</Typo>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.white} />
+          </TouchableOpacity>
+        </AnimatedFadeIn>
 
         {/* Nearby Courses Header */}
-        <View style={styles.sectionHeader}>
-          <Typo variant="label" style={styles.sectionTitle}>NEARBY COURSES</Typo>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/courses')}>
-            <Typo variant="small" style={styles.seeAll}>See all</Typo>
-          </TouchableOpacity>
-        </View>
-
-        {/* Horizontal Nearby Courses Scroll — Sleek Single Line */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {MOCK_COURSES.map((course) => (
-            <TouchableOpacity
-              key={course.id}
-              style={styles.courseCardRow}
-              activeOpacity={0.88}
-              onPress={() => router.push({ pathname: '/course/[id]', params: { id: course.id } })}
-            >
-              <Image source={{ uri: course.image }} style={styles.courseRowImg} />
-              <View style={styles.courseRowBody}>
-                <View style={styles.courseRowTop}>
-                  <Typo variant="bodyMedium" style={styles.courseName} numberOfLines={1}>
-                    {course.name}
-                  </Typo>
-                  <View style={styles.distBadgeInline}>
-                    <Typo variant="caption" style={styles.distText}>{course.distance}</Typo>
-                  </View>
-                </View>
-                <View style={styles.courseRowBottom}>
-                  <Typo variant="caption" style={styles.courseHoles}>
-                    {course.holes} Holes • Par {course.par}
-                  </Typo>
-                  <View style={styles.ratingRow}>
-                    <Ionicons name="star" size={11} color={Colors.primaryBlack} />
-                    <Typo variant="caption" style={styles.ratingText}>{course.rating}</Typo>
-                  </View>
-                </View>
-              </View>
+        <AnimatedFadeIn delay={180}>
+          <View style={styles.sectionHeader}>
+            <Typo variant="label" style={styles.sectionTitle}>NEARBY COURSES</Typo>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/courses')}>
+              <Typo variant="small" style={styles.seeAll}>See all</Typo>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          </View>
 
-        {/* Recent Round Section Header */}
-        <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push('/(tabs)/profile')}>
-          <Typo variant="label" style={styles.sectionTitle}>RECENT ROUND</Typo>
-          <Ionicons name="chevron-forward" size={18} color={Colors.primaryBlack} />
-        </TouchableOpacity>
+          {/* Horizontal Nearby Courses Scroll — Sleek Single Line */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalScroll}
+          >
+            {MOCK_COURSES.map((course, idx) => (
+              <TouchableOpacity
+                key={course.id}
+                style={styles.courseCardRow}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: '/course/[id]', params: { id: course.id } })}
+              >
+                <Image source={{ uri: course.image }} style={styles.courseRowImg} />
+                <View style={styles.courseRowBody}>
+                  <View style={styles.courseRowTop}>
+                    <Typo variant="bodyMedium" style={styles.courseName} numberOfLines={1}>
+                      {course.name}
+                    </Typo>
+                    <View style={styles.distBadgeInline}>
+                      <Typo variant="caption" style={styles.distText}>{course.distance}</Typo>
+                    </View>
+                  </View>
+                  <View style={styles.courseRowBottom}>
+                    <Typo variant="caption" style={styles.courseHoles}>
+                      {course.holes} Holes • Par {course.par}
+                    </Typo>
+                    <View style={styles.ratingRow}>
+                      <Ionicons name="star" size={11} color={Colors.primaryBlack} />
+                      <Typo variant="caption" style={styles.ratingText}>{course.rating}</Typo>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </AnimatedFadeIn>
 
         {/* Recent Round Card */}
-        <View style={styles.recentRoundCard}>
-          <View style={styles.recentTop}>
-            {/* Round Circle Score Gauge */}
-            <View style={styles.scoreGaugeCircle}>
-              <Typo variant="h2" style={styles.scoreGaugeText}>-4</Typo>
-              <Typo variant="caption" style={styles.scoreGaugeSub}>UNDER</Typo>
+        <AnimatedFadeIn delay={260}>
+          <TouchableOpacity style={styles.sectionHeader} onPress={() => router.push('/(tabs)/profile')}>
+            <Typo variant="label" style={styles.sectionTitle}>RECENT ROUND</Typo>
+            <Ionicons name="chevron-forward" size={18} color={Colors.primaryBlack} />
+          </TouchableOpacity>
+
+          <View style={styles.recentRoundCard}>
+            <View style={styles.recentTop}>
+              <View style={styles.scoreGaugeCircle}>
+                <Typo variant="h2" style={styles.scoreGaugeText}>-4</Typo>
+                <Typo variant="caption" style={styles.scoreGaugeSub}>UNDER</Typo>
+              </View>
+              <View style={styles.recentInfo}>
+                <Typo variant="bodyMedium" style={styles.recentCourse}>Maple Hill DGC</Typo>
+                <Typo variant="small" style={styles.recentDate}>May 18, 2025</Typo>
+              </View>
             </View>
-            <View style={styles.recentInfo}>
-              <Typo variant="bodyMedium" style={styles.recentCourse}>Maple Hill DGC</Typo>
-              <Typo variant="small" style={styles.recentDate}>May 18, 2025</Typo>
+            <View style={styles.statsRow}>
+              <View style={styles.statCol}>
+                <Typo variant="caption" style={styles.statLabel}>SCORE</Typo>
+                <Typo variant="bodyMedium" style={styles.statVal}>54</Typo>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCol}>
+                <Typo variant="caption" style={styles.statLabel}>ROUND RATING</Typo>
+                <Typo variant="bodyMedium" style={styles.statVal}>1020</Typo>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCol}>
+                <Typo variant="caption" style={styles.statLabel}>FAIRWAYS</Typo>
+                <Typo variant="bodyMedium" style={styles.statVal}>71%</Typo>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCol}>
+                <Typo variant="caption" style={styles.statLabel}>C1X</Typo>
+                <Typo variant="bodyMedium" style={styles.statVal}>4</Typo>
+              </View>
             </View>
           </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statCol}>
-              <Typo variant="caption" style={styles.statLabel}>SCORE</Typo>
-              <Typo variant="bodyMedium" style={styles.statVal}>54</Typo>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Typo variant="caption" style={styles.statLabel}>ROUND RATING</Typo>
-              <Typo variant="bodyMedium" style={styles.statVal}>1020</Typo>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Typo variant="caption" style={styles.statLabel}>FAIRWAYS</Typo>
-              <Typo variant="bodyMedium" style={styles.statVal}>71%</Typo>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Typo variant="caption" style={styles.statLabel}>C1X</Typo>
-              <Typo variant="bodyMedium" style={styles.statVal}>4</Typo>
-            </View>
-          </View>
-        </View>
+        </AnimatedFadeIn>
 
         {/* Split Bottom Grid: Weather & Wind | My Bag */}
         <View style={styles.bottomGrid}>

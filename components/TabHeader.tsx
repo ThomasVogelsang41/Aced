@@ -60,10 +60,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   brandLogo: {
-    width: 180,
-    height: 40,
+    width: 140,
+    height: 28,
     marginBottom: 8,
     alignSelf: 'flex-start',
+    marginLeft: -2,
     tintColor: Colors.primaryBlack,
   },
   subtitle: {
@@ -91,12 +92,14 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   bellBtn: {
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+    paddingTop: 2,
     position: 'relative',
   },
   notifDot: {
     position: 'absolute',
-    top: 8,
+    top: 2,
     right: 8,
     width: 8,
     height: 8,

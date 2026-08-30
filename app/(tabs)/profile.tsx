@@ -17,6 +17,8 @@ import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { TabHeader } from '../../components/TabHeader';
+import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
+import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import { useAuthStore } from '../../store/authStore';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
 
@@ -148,33 +150,35 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Uniform Top Header */}
-      <View style={{ paddingHorizontal: Spacing.lg }}>
+      <AnimatedFadeIn delay={0} style={{ paddingHorizontal: Spacing.lg }}>
         <TabHeader subtitle="Your stats" title={userName} />
-      </View>
+      </AnimatedFadeIn>
 
       {/* Segmented Sub Nav Control */}
-      <View style={styles.segmentContainer}>
-        {(['profile', 'stats', 'bag', 'shop'] as const).map((seg) => {
-          const isAct = activeSegment === seg;
-          const labels: Record<ProfileSubTab, string> = {
-            profile: 'Profile',
-            stats: 'Stats',
-            bag: 'My Bag',
-            shop: 'Shop',
-          };
-          return (
-            <TouchableOpacity
-              key={seg}
-              style={[styles.segmentBtn, isAct && styles.segmentBtnActive]}
-              onPress={() => setActiveSegment(seg)}
-            >
-              <Typo style={[styles.segmentText, isAct && styles.segmentTextActive]}>
-                {labels[seg]}
-              </Typo>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <AnimatedFadeIn delay={100}>
+        <View style={styles.segmentContainer}>
+          {(['profile', 'stats', 'bag', 'shop'] as const).map((seg) => {
+            const isAct = activeSegment === seg;
+            const labels: Record<ProfileSubTab, string> = {
+              profile: 'Profile',
+              stats: 'Stats',
+              bag: 'My Bag',
+              shop: 'Shop',
+            };
+            return (
+              <TouchableOpacity
+                key={seg}
+                style={[styles.segmentBtn, isAct && styles.segmentBtnActive]}
+                onPress={() => setActiveSegment(seg)}
+              >
+                <Typo style={[styles.segmentText, isAct && styles.segmentTextActive]}>
+                  {labels[seg]}
+                </Typo>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </AnimatedFadeIn>
 
       <ScrollView
         style={styles.scroll}
@@ -411,7 +415,7 @@ export default function ProfileScreen() {
                 onChangeText={setDiscSearch}
                 autoFocus
               />
-              {searchLoading && <ActivityIndicator size="small" color={Colors.blue} />}
+              {searchLoading && <DiscSpinner size={20} label="" />}
             </View>
           </View>
           <FlatList

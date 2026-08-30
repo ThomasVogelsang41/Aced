@@ -57,6 +57,7 @@ const MOCK_NEARBY = [
 ];
 
 import { TabHeader } from '../../components/TabHeader';
+import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
 
 export default function CoursesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,41 +73,47 @@ export default function CoursesScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Uniform Top Header */}
-        <TabHeader subtitle="Course Directory" title="Map" />
+        <AnimatedFadeIn delay={0}>
+          <TabHeader subtitle="Course Directory" title="Map" />
+        </AnimatedFadeIn>
 
         {/* Map View Graphic Header */}
-        <View style={styles.mapGraphicCard}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?w=800&auto=format&fit=crop&q=80' }}
-            style={styles.mapImage}
-          />
-          <View style={styles.mapOverlay}>
-            <View style={[styles.mapMarker, styles.mapMarkerActive]}>
-              <Typo style={styles.markerTextActive}>A</Typo>
-            </View>
-            <View style={[styles.mapMarker, { top: 30, left: 70 }]}>
-              <Typo style={styles.markerText}>A</Typo>
-            </View>
-            <View style={[styles.mapMarker, { top: 20, right: 80 }]}>
-              <Typo style={styles.markerText}>A</Typo>
-            </View>
-            <View style={[styles.mapMarker, { bottom: 30, left: 100 }]}>
-              <Typo style={styles.markerText}>A</Typo>
+        <AnimatedFadeIn delay={100}>
+          <View style={styles.mapGraphicCard}>
+            <Image
+              source={{ uri: 'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?w=800&auto=format&fit=crop&q=80' }}
+              style={styles.mapImage}
+            />
+            <View style={styles.mapOverlay}>
+              <View style={[styles.mapMarker, styles.mapMarkerActive]}>
+                <Typo style={styles.markerTextActive}>A</Typo>
+              </View>
+              <View style={[styles.mapMarker, { top: 30, left: 70 }]}>
+                <Typo style={styles.markerText}>A</Typo>
+              </View>
+              <View style={[styles.mapMarker, { top: 20, right: 80 }]}>
+                <Typo style={styles.markerText}>A</Typo>
+              </View>
+              <View style={[styles.mapMarker, { bottom: 30, left: 100 }]}>
+                <Typo style={styles.markerText}>A</Typo>
+              </View>
             </View>
           </View>
-        </View>
+        </AnimatedFadeIn>
 
         {/* Search Input */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color={Colors.gray400} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search courses, locations, or keywords"
-            placeholderTextColor={Colors.gray400}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        <AnimatedFadeIn delay={180}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={Colors.gray400} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search courses, locations, or keywords"
+              placeholderTextColor={Colors.gray400}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </AnimatedFadeIn>
 
         {/* Filter Pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>

@@ -52,7 +52,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Official Brand Logo & Wordmark */}
+        {/* Official Black Box A Monogram App Icon & Wordmark */}
         <View style={styles.logoBox}>
           <Image
             source={require('../../assets/icon.png')}
@@ -156,9 +156,9 @@ const styles = StyleSheet.create({
     marginBottom: 48,
   },
   brandIconImg: {
-    width: 80,
-    height: 80,
-    borderRadius: 18,
+    width: 96,
+    height: 96,
+    borderRadius: 22,
     marginBottom: 12,
   },
   wordmarkImg: {

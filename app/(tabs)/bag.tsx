@@ -16,6 +16,8 @@ import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { TabHeader } from '../../components/TabHeader';
+import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
+import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
 
 const MOCK_BAG_DISCS = [
@@ -116,29 +118,31 @@ export default function BagScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Uniform Top Header */}
-      <View style={{ paddingHorizontal: Spacing.lg }}>
+      <AnimatedFadeIn delay={0} style={{ paddingHorizontal: Spacing.lg }}>
         <TabHeader subtitle="Disc Inventory" title="My Bag" />
-      </View>
+      </AnimatedFadeIn>
 
       {/* Sub Tabs */}
-      <View style={styles.subTabsRow}>
-        {(['discs', 'insights', 'trends'] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.subTabItem, activeSubTab === tab && styles.subTabItemActive]}
-            onPress={() => setActiveSubTab(tab)}
-          >
-            <Typo
-              style={[
-                styles.subTabText,
-                activeSubTab === tab && styles.subTabTextActive,
-              ]}
+      <AnimatedFadeIn delay={100}>
+        <View style={styles.subTabsRow}>
+          {(['discs', 'insights', 'trends'] as const).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.subTabItem, activeSubTab === tab && styles.subTabItemActive]}
+              onPress={() => setActiveSubTab(tab)}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Typo>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Typo
+                style={[
+                  styles.subTabText,
+                  activeSubTab === tab && styles.subTabTextActive,
+                ]}
+              >
+                {tab === 'discs' ? 'Discs' : tab === 'insights' ? 'Flight Matrix' : 'In My Bag'}
+              </Typo>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </AnimatedFadeIn>
 
       <ScrollView
         style={styles.scroll}
@@ -258,7 +262,7 @@ export default function BagScreen() {
                 onChangeText={setDiscSearch}
                 autoFocus
               />
-              {searchLoading && <ActivityIndicator size="small" color={Colors.blue} />}
+              {searchLoading && <DiscSpinner size={20} label="" />}
             </View>
           </View>
           <FlatList

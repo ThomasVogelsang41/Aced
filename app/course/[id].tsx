@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -14,11 +13,12 @@ import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Divider } from '../../components/ui/Divider';
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { useRoundStore } from '../../store/roundStore';
 import { useAuthStore } from '../../store/authStore';
 import { useBags } from '../../hooks/useBag';
 import { getCourse } from '../../lib/discgolfapi';
+import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import type { Course } from '../../types/course';
 
 export default function CourseDetailScreen() {
@@ -38,7 +38,7 @@ export default function CourseDetailScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={Colors.blue} />
+          <DiscSpinner label="Loading course details..." size={44} />
         </View>
       </SafeAreaView>
     );
@@ -117,7 +117,7 @@ export default function CourseDetailScreen() {
           </Typo>
         </View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Sticky start round */}
@@ -141,50 +141,45 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string }> = ({
   value,
 }) => (
   <View style={styles.infoRow}>
-    <Ionicons name={icon as React.ComponentProps<typeof Ionicons>['name']} size={18} color={Colors.secondaryText} />
-    <View style={{ flex: 1 }}>
-      <Typo variant="caption">{label}</Typo>
-      <Typo variant="bodyMedium">{value}</Typo>
-    </View>
+    <Ionicons name={icon as any} size={18} color={Colors.gray500} />
+    <Typo variant="body" style={styles.infoLabel}>{label}</Typo>
+    <Typo variant="bodyMedium" style={styles.infoValue}>{value}</Typo>
   </View>
 );
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: { padding: Spacing['2xl'], paddingBottom: 120 },
-  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  content: { padding: Spacing.lg },
+  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 300 },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
+    gap: Spacing.xs,
+    marginBottom: Spacing.base,
   },
-  header: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  courseName: { lineHeight: 36 },
+  header: { gap: 6 },
+  courseName: { fontFamily: Typography.fontFamily.bold },
   location: { color: Colors.secondaryText },
   badges: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
-  infoGrid: { gap: Spacing.base },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  infoGrid: { gap: Spacing.md },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  infoLabel: { flex: 1, color: Colors.secondaryText },
+  infoValue: { fontFamily: Typography.fontFamily.medium },
   gpsNote: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    alignItems: 'flex-start',
+    gap: Spacing.xs,
     backgroundColor: Colors.backgroundSoft,
-    borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
   },
   gpsNoteText: { flex: 1, color: Colors.secondaryText },
   stickyBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    padding: Spacing.lg,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    padding: Spacing['2xl'],
-    paddingBottom: 36,
+    ...Shadows.md,
   },
 });

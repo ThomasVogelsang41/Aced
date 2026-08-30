@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 
 interface LocationState {
@@ -22,6 +22,39 @@ export function useLocation(watch = false) {
 
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  const requestLocationPermission = useCallback(async () => {
+    setState((s) => ({ ...s, isLoading: true, error: null }));
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          hasPermission: false,
+          error: 'Location permission not granted',
+        }));
+        return false;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      setState({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: loc.coords.accuracy,
+        isLoading: false,
+        error: null,
+        hasPermission: true,
+      });
+      return true;
+    } catch (e: any) {
+      setState((s) => ({ ...s, isLoading: false, error: e.message }));
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -29,7 +62,12 @@ export function useLocation(watch = false) {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         if (!cancelled) {
-          setState((s) => ({ ...s, isLoading: false, hasPermission: false, error: 'Location permission denied' }));
+          setState((s) => ({
+            ...s,
+            isLoading: false,
+            hasPermission: false,
+            error: 'Location permission denied',
+          }));
         }
         return;
       }
@@ -87,5 +125,8 @@ export function useLocation(watch = false) {
     };
   }, [watch]);
 
-  return state;
+  return {
+    ...state,
+    requestLocationPermission,
+  };
 }

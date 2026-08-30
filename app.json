@@ -12,13 +12,20 @@
       "backgroundColor": "#09090A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "ACED uses your location to find disc golf courses near you and calculate accurate tee-to-pin GPS distances."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#09090A",
         "foregroundImage": "./assets/adaptive-icon.png"
-      }
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/icon.png"

@@ -3,10 +3,10 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  TextInput,
-  FlatList,
-  Modal,
   TouchableOpacity,
+  TextInput,
+  Modal,
+  FlatList,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,49 +14,98 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
-import { DiscCard } from '../../components/DiscCard';
-import { Badge } from '../../components/ui/Badge';
-import { Divider } from '../../components/ui/Divider';
-import { Colors, Spacing, Layout, BorderRadius, Typography } from '../../constants/theme';
-import { useAuthStore } from '../../store/authStore';
-import { useBagStore } from '../../store/bagStore';
-import { useBags, useAddDiscToBag, useRemoveDiscFromBag } from '../../hooks/useBag';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
+import { TabHeader } from '../../components/TabHeader';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
-import type { TryDiscsDisc } from '../../types/disc';
 
-type FilterCategory = 'all' | 'distance_driver' | 'fairway_driver' | 'midrange' | 'putter';
-
-const CATEGORY_LABELS: Record<FilterCategory, string> = {
-  all: 'All',
-  distance_driver: 'Drivers',
-  fairway_driver: 'Fairways',
-  midrange: 'Mids',
-  putter: 'Putters',
-};
-
-function normalizeCategoryFromTryDiscs(raw: string): string {
-  const lower = raw.toLowerCase();
-  if (lower.includes('distance') || lower.includes('disc golf driver')) return 'distance_driver';
-  if (lower.includes('fairway')) return 'fairway_driver';
-  if (lower.includes('mid')) return 'midrange';
-  if (lower.includes('putter')) return 'putter';
-  return 'midrange';
-}
+const MOCK_BAG_DISCS = [
+  {
+    id: 'volt',
+    name: 'Volt',
+    brand: 'MVP',
+    plastic: 'Neutron',
+    color: '#0055FF',
+    discTextColor: '#FFFFFF',
+    speed: 8,
+    glide: 5,
+    turn: -0.5,
+    fade: 2,
+    confidence: '92%',
+    avgDistance: '276 ft',
+    usage: '18%',
+    featured: true,
+  },
+  {
+    id: 'explorer',
+    name: 'Explorer',
+    brand: 'Discmania',
+    plastic: 'Neo',
+    color: '#F4F4F6',
+    discTextColor: '#09090A',
+    speed: 7,
+    glide: 5,
+    turn: 0,
+    fade: 2,
+    confidence: null,
+    avgDistance: '242 ft',
+    usage: '24%',
+    featured: false,
+  },
+  {
+    id: 'firebird',
+    name: 'Firebird',
+    brand: 'Innova',
+    plastic: 'Champion',
+    color: '#EF4444',
+    discTextColor: '#FFFFFF',
+    speed: 9,
+    glide: 3,
+    turn: 0,
+    fade: 4,
+    confidence: null,
+    avgDistance: '325 ft',
+    usage: '15%',
+    featured: false,
+  },
+  {
+    id: 'luna',
+    name: 'Luna',
+    brand: 'Discraft',
+    plastic: 'Jawbreaker',
+    color: '#D8B4FE',
+    discTextColor: '#09090A',
+    speed: 3,
+    glide: 3,
+    turn: 0,
+    fade: 2,
+    confidence: null,
+    avgDistance: '195 ft',
+    usage: '16%',
+    featured: false,
+  },
+  {
+    id: 'destroyer',
+    name: 'Destroyer',
+    brand: 'Innova',
+    plastic: 'Star',
+    color: '#93C5FD',
+    discTextColor: '#09090A',
+    speed: 12,
+    glide: 5,
+    turn: -1,
+    fade: 3,
+    confidence: null,
+    avgDistance: '364 ft',
+    usage: '7%',
+    featured: false,
+  },
+];
 
 export default function BagScreen() {
-  const { user } = useAuthStore();
-  const { getActiveBag, activeBagId } = useBagStore();
-  const { isLoading } = useBags(user?.id ?? null);
-  const addDiscMutation = useAddDiscToBag();
-  const removeDiscMutation = useRemoveDiscFromBag();
-
-  const [filter, setFilter] = useState<FilterCategory>('all');
+  const [activeSubTab, setActiveSubTab] = useState<'discs' | 'insights' | 'trends'>('discs');
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [discSearch, setDiscSearch] = useState('');
 
-  const activeBag = getActiveBag();
-
-  // TryDiscs search query
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ['discSearch', discSearch],
     queryFn: () => searchDiscs({ query: discSearch, limit: 20 }),
@@ -64,122 +113,125 @@ export default function BagScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const filteredDiscs = (activeBag?.discs ?? []).filter(
-    (d) => filter === 'all' || d.category === filter
-  );
-
-  function handleAddDisc(tdDisc: TryDiscsDisc) {
-    if (!activeBagId) return;
-    const category = normalizeCategoryFromTryDiscs(tdDisc.category) as 'distance_driver' | 'fairway_driver' | 'midrange' | 'putter';
-    addDiscMutation.mutate({
-      bagId: activeBagId,
-      disc: {
-        id: `${tdDisc.brand}:${tdDisc.disc}`,
-        bagId: activeBagId,
-        brand: tdDisc.brand,
-        name: tdDisc.disc,
-        category,
-        speed: tdDisc.speed,
-        glide: tdDisc.glide,
-        turn: tdDisc.turn,
-        fade: tdDisc.fade,
-      },
-    });
-    setAddModalVisible(false);
-    setDiscSearch('');
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Typo variant="h2">My Bag</Typo>
-          <Typo variant="small" style={styles.bagName}>
-            {activeBag?.name ?? 'No bag selected'}
-          </Typo>
-        </View>
-        <Button
-          label="Add Disc"
-          variant="primary"
-          size="sm"
-          icon={<Ionicons name="add" size={16} color={Colors.white} />}
-          onPress={() => setAddModalVisible(true)}
-        />
+      {/* Uniform Top Header */}
+      <View style={{ paddingHorizontal: Spacing.lg }}>
+        <TabHeader subtitle="Disc Inventory" title="My Bag" />
       </View>
 
-      {/* Category filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        {(Object.keys(CATEGORY_LABELS) as FilterCategory[]).map((cat) => (
+      {/* Sub Tabs */}
+      <View style={styles.subTabsRow}>
+        {(['discs', 'insights', 'trends'] as const).map((tab) => (
           <TouchableOpacity
-            key={cat}
-            style={[styles.filterChip, filter === cat && styles.filterChipActive]}
-            onPress={() => setFilter(cat)}
+            key={tab}
+            style={[styles.subTabItem, activeSubTab === tab && styles.subTabItemActive]}
+            onPress={() => setActiveSubTab(tab)}
           >
             <Typo
               style={[
-                styles.filterLabel,
-                filter === cat && styles.filterLabelActive,
+                styles.subTabText,
+                activeSubTab === tab && styles.subTabTextActive,
               ]}
             >
-              {CATEGORY_LABELS[cat]}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Typo>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
-      <Divider />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Disc List */}
+        {MOCK_BAG_DISCS.map((disc) => (
+          <View
+            key={disc.id}
+            style={[
+              styles.discCard,
+              disc.featured && styles.discCardFeatured,
+            ]}
+          >
+            <View style={styles.cardMainRow}>
+              {/* Render Circle Disc Artwork */}
+              <View style={[styles.discArtwork, { backgroundColor: disc.color }]}>
+                <Typo style={[styles.discArtworkText, { color: disc.discTextColor }]}>
+                  {disc.name.toUpperCase()}
+                </Typo>
+              </View>
 
-      {/* Disc list */}
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={Colors.blue} />
-        </View>
-      ) : filteredDiscs.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="bag-outline" size={48} color={Colors.gray300} />
-          <Typo variant="body" style={styles.emptyTitle}>
-            {filter === 'all' ? 'Your bag is empty' : `No ${CATEGORY_LABELS[filter].toLowerCase()} in bag`}
-          </Typo>
-          <Typo variant="small" style={styles.emptyText}>
-            Tap "Add Disc" to search the TryDiscs catalog
-          </Typo>
-          <Button
-            label="Add Your First Disc"
-            variant="primary"
-            size="md"
-            onPress={() => setAddModalVisible(true)}
-            style={styles.emptyBtn}
-          />
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        >
-          {filteredDiscs.map((disc) => (
-            <DiscCard
-              key={disc.bagDiscId}
-              disc={disc}
-              onRemove={() =>
-                removeDiscMutation.mutate({ bagId: disc.bagId, bagDiscId: disc.bagDiscId })
-              }
-            />
-          ))}
-          {/* TryDiscs attribution */}
-          <TouchableOpacity>
-            <Typo variant="caption" style={styles.attribution}>
-              {TRYDISCS_ATTRIBUTION.text}
-            </Typo>
+              <View style={styles.discMetaInfo}>
+                <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
+                <Typo variant="caption" style={styles.discBrandText}>
+                  {disc.brand} • {disc.plastic}
+                </Typo>
+
+                {/* Flight numbers grid */}
+                <View style={styles.flightGrid}>
+                  <FlightBox val={disc.speed} label="SPEED" />
+                  <FlightBox val={disc.glide} label="GLIDE" />
+                  <FlightBox val={disc.turn} label="TURN" />
+                  <FlightBox val={disc.fade} label="FADE" />
+                </View>
+              </View>
+
+              {/* Right Stats Box */}
+              <View style={styles.rightStatsCol}>
+                {disc.confidence && (
+                  <View style={styles.confidenceBadge}>
+                    <Typo style={styles.confidenceText}>{disc.confidence} CONFIDENCE</Typo>
+                  </View>
+                )}
+                <View style={styles.statGroup}>
+                  <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
+                  <Typo variant="caption" style={styles.statSubLabel}>AVG DISTANCE</Typo>
+                </View>
+                <View style={styles.statGroup}>
+                  <Typo variant="bodyMedium" style={styles.usageValue}>{disc.usage}</Typo>
+                  <Typo variant="caption" style={styles.statSubLabel}>USAGE</Typo>
+                </View>
+              </View>
+            </View>
+          </View>
+        ))}
+
+        {/* Best disc for this hole bottom recommendation card */}
+        <View style={styles.holeRecCard}>
+          <TouchableOpacity style={styles.holeRecHeader}>
+            <View>
+              <Typo variant="bodyMedium" style={styles.holeRecTitle}>Best disc for this hole</Typo>
+              <Typo variant="caption" style={styles.holeRecSub}>Hole 6 • Par 4 • 412 ft</Typo>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.primaryBlack} />
           </TouchableOpacity>
-          <View style={{ height: 32 }} />
-        </ScrollView>
-      )}
+
+          <View style={styles.holeRecBody}>
+            <View style={[styles.discArtworkSmall, { backgroundColor: Colors.blue }]}>
+              <Typo style={styles.discArtworkTextSmall}>VOLT</Typo>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Typo variant="bodyMedium" style={styles.holeRecDiscName}>Volt</Typo>
+              <Typo variant="caption" style={styles.holeRecBrand}>MVP Neutron</Typo>
+            </View>
+            <View style={styles.recConfidenceBadge}>
+              <Typo style={styles.recConfidenceText}>92% CONFIDENCE</Typo>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Typo variant="bodyMedium" style={styles.expectedVal}>276 ft</Typo>
+              <Typo variant="caption" style={styles.statSubLabel}>EXPECTED</Typo>
+            </View>
+          </View>
+        </View>
+
+        {/* TryDiscs attribution */}
+        <Typo variant="caption" style={styles.attribution}>
+          {TRYDISCS_ATTRIBUTION.text}
+        </Typo>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
 
       {/* Add Disc Modal */}
       <Modal
@@ -190,176 +242,187 @@ export default function BagScreen() {
       >
         <SafeAreaView style={styles.modal} edges={['top']}>
           <View style={styles.modalHeader}>
-            <Typo variant="h3">Add Disc</Typo>
+            <Typo variant="h3">Search Disc Catalog</Typo>
             <TouchableOpacity onPress={() => setAddModalVisible(false)}>
               <Ionicons name="close" size={24} color={Colors.primaryBlack} />
             </TouchableOpacity>
           </View>
-
           <View style={styles.modalSearch}>
             <View style={styles.searchBar}>
               <Ionicons name="search" size={18} color={Colors.gray400} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search discs (e.g. Destroyer, Buzzz)..."
+                placeholder="Search catalog (Destroyer, Buzzz)..."
                 placeholderTextColor={Colors.gray400}
                 value={discSearch}
                 onChangeText={setDiscSearch}
                 autoFocus
-                clearButtonMode="while-editing"
               />
               {searchLoading && <ActivityIndicator size="small" color={Colors.blue} />}
             </View>
           </View>
-
           <FlatList
             data={searchResults ?? []}
             keyExtractor={(item) => `${item.brand}:${item.disc}`}
-            contentContainerStyle={styles.modalList}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              discSearch.length >= 2 && !searchLoading ? (
-                <View style={styles.center}>
-                  <Typo variant="small" style={styles.emptyText}>No discs found</Typo>
-                </View>
-              ) : discSearch.length < 2 ? (
-                <Typo variant="small" style={[styles.emptyText, { textAlign: 'center', padding: 24 }]}>
-                  Type at least 2 characters to search
-                </Typo>
-              ) : null
-            }
+            contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.searchResultRow}
-                onPress={() => handleAddDisc(item)}
+                onPress={() => { setAddModalVisible(false); }}
               >
-                <View style={styles.searchResultInfo}>
+                <View style={{ flex: 1 }}>
                   <Typo variant="bodyMedium">{item.disc}</Typo>
-                  <Typo variant="small">{item.brand}</Typo>
-                  <View style={styles.flightRow}>
-                    {[item.speed, item.glide, item.turn, item.fade].map((v, i) => (
-                      <View key={i} style={styles.flightPill}>
-                        <Typo style={styles.flightLabel}>
-                          {['S', 'G', 'T', 'F'][i]}
-                        </Typo>
-                        <Typo style={styles.flightVal}>{v}</Typo>
-                      </View>
-                    ))}
-                  </View>
+                  <Typo variant="caption">{item.brand}</Typo>
                 </View>
-                <Ionicons name="add-circle" size={28} color={Colors.blue} />
+                <Ionicons name="add-circle" size={24} color={Colors.blue} />
               </TouchableOpacity>
             )}
           />
-
-          <Typo variant="caption" style={[styles.attribution, { textAlign: 'center', marginBottom: 16 }]}>
-            {TRYDISCS_ATTRIBUTION.text}
-          </Typo>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
 
+const FlightBox: React.FC<{ val: number; label: string }> = ({ val, label }) => (
+  <View style={styles.flightBoxItem}>
+    <Typo variant="bodyMedium" style={styles.flightValText}>{val}</Typo>
+    <Typo variant="caption" style={styles.flightLabelText}>{label}</Typo>
+  </View>
+);
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing.base,
-    paddingBottom: Spacing.base,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    marginBottom: Spacing.md,
   },
-  bagName: { color: Colors.secondaryText, marginTop: 2 },
-  filterRow: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  filterChip: {
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.backgroundSoft,
+  title: { fontSize: 32, fontFamily: Typography.fontFamily.bold },
+  headerIcons: { flexDirection: 'row', gap: Spacing.sm },
+  iconCircleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterChipActive: {
-    backgroundColor: Colors.blue,
+
+  // Sub Tabs
+  subTabsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.base,
+  },
+  subTabItem: {
+    paddingVertical: 12,
+    marginRight: Spacing.xl,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  subTabItemActive: { borderBottomColor: Colors.blue },
+  subTabText: { fontSize: Typography.size.base, fontFamily: Typography.fontFamily.medium, color: Colors.secondaryText },
+  subTabTextActive: { color: Colors.blue, fontFamily: Typography.fontFamily.bold },
+
+  // Disc Card
+  discCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.base,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+  },
+  discCardFeatured: {
     borderColor: Colors.blue,
+    borderWidth: 2,
   },
-  filterLabel: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.size.sm,
-    color: Colors.secondaryText,
+  cardMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
   },
-  filterLabelActive: { color: Colors.white },
-  scroll: { flex: 1 },
-  list: { paddingHorizontal: Layout.screenPaddingH, paddingTop: Spacing.base },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['2xl'], gap: Spacing.sm },
-  emptyTitle: { color: Colors.primaryBlack, marginTop: Spacing.sm },
-  emptyText: { color: Colors.secondaryText, textAlign: 'center' },
-  emptyBtn: { marginTop: Spacing.base },
-  attribution: { color: Colors.blue, textDecorationLine: 'underline', textAlign: 'center', marginVertical: Spacing.base },
-  // Modal
-  modal: { flex: 1, backgroundColor: Colors.white },
-  modalHeader: {
+  discArtwork: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  discArtworkText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  discMetaInfo: { flex: 1 },
+  discNameTitle: { fontSize: Typography.size.lg, fontFamily: Typography.fontFamily.bold },
+  discBrandText: { color: Colors.secondaryText, fontSize: Typography.size.xs, marginBottom: 8 },
+  flightGrid: { flexDirection: 'row', gap: 10 },
+  flightBoxItem: { alignItems: 'center' },
+  flightValText: { fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  flightLabelText: { fontSize: 8, color: Colors.secondaryText, fontFamily: Typography.fontFamily.semiBold },
+
+  rightStatsCol: { alignItems: 'flex-end', gap: 6 },
+  confidenceBadge: {
+    borderWidth: 1,
+    borderColor: Colors.blue,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: Colors.blueLight,
+  },
+  confidenceText: { fontSize: 8, color: Colors.blue, fontFamily: Typography.fontFamily.bold },
+  statGroup: { alignItems: 'flex-end' },
+  distValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  usageValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold },
+  statSubLabel: { fontSize: 8, color: Colors.secondaryText, fontFamily: Typography.fontFamily.semiBold },
+
+  // Bottom Hole Rec Card
+  holeRecCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.base,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.base,
+    ...Shadows.sm,
+  },
+  holeRecHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.base,
+    paddingBottom: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    marginBottom: Spacing.sm,
   },
-  modalSearch: { paddingHorizontal: Layout.screenPaddingH, paddingVertical: Spacing.base },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSoft,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 12,
-    gap: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.size.base,
-    color: Colors.primaryBlack,
-    padding: 0,
-  },
-  modalList: { paddingHorizontal: Layout.screenPaddingH },
-  searchResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.base,
-  },
-  searchResultInfo: { flex: 1, gap: 4 },
-  flightRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
-  flightPill: {
-    flexDirection: 'row',
-    gap: 3,
-    backgroundColor: Colors.backgroundSoft,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  flightLabel: {
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: 10,
-    color: Colors.secondaryText,
-  },
-  flightVal: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: 10,
-    color: Colors.primaryBlack,
-  },
+  holeRecTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.size.base },
+  holeRecSub: { color: Colors.secondaryText, fontSize: Typography.size.xs },
+  holeRecBody: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  discArtworkSmall: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  discArtworkTextSmall: { color: Colors.white, fontSize: 8, fontWeight: 'bold' },
+  holeRecDiscName: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.size.base },
+  holeRecBrand: { color: Colors.secondaryText, fontSize: Typography.size.xs },
+  recConfidenceBadge: { backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 4 },
+  recConfidenceText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primaryBlack },
+  expectedVal: { fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+
+  attribution: { color: Colors.blue, textAlign: 'center', marginVertical: Spacing.base, textDecorationLine: 'underline' },
+
+  // Modal
+  modal: { flex: 1, backgroundColor: Colors.white },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalSearch: { padding: Spacing.lg },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.base, paddingVertical: 12, gap: Spacing.sm },
+  searchInput: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.size.base, color: Colors.primaryBlack, padding: 0 },
+  searchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
 });

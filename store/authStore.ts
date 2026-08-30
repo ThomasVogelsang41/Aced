@@ -8,6 +8,7 @@ interface AuthState {
   isLoading: boolean;
   setSession: (session: Session | null) => void;
   signOut: () => Promise<void>;
+  loginAsGuest: () => void;
   initialize: () => Promise<() => void>;
 }
 
@@ -20,8 +21,31 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ session, user: session?.user ?? null, isLoading: false }),
 
   signOut: async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     set({ session: null, user: null });
+  },
+
+  loginAsGuest: () => {
+    const mockUser: any = {
+      id: 'demo-user-123',
+      app_metadata: {},
+      user_metadata: { username: 'Guest Golfer' },
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+      email: 'guest@aced.app',
+    };
+    const mockSession: any = {
+      access_token: 'mock-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      refresh_token: 'mock-refresh',
+      user: mockUser,
+    };
+    set({ session: mockSession, user: mockUser, isLoading: false });
   },
 
   initialize: async () => {

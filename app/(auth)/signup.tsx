@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { router, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -31,20 +32,22 @@ export default function SignupScreen() {
       setError('Password must be at least 8 characters.');
       return;
     }
-    setIsLoading(true);
-    setError(null);
+    try {
+      const { error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } },
+      });
 
-    const { error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { username } },
-    });
-
-    setIsLoading(false);
-    if (authError) {
-      setError(authError.message);
-    } else {
-      setSuccess(true);
+      setIsLoading(false);
+      if (authError) {
+        setError(authError.message);
+      } else {
+        setSuccess(true);
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || 'Network error connecting to Supabase.');
     }
   }
 
@@ -83,6 +86,18 @@ export default function SignupScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Typo style={styles.backArrow}>←</Typo>
           </TouchableOpacity>
+          <View style={styles.logoBox}>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.brandIconImg}
+              resizeMode="contain"
+            />
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.wordmarkImg}
+              resizeMode="contain"
+            />
+          </View>
           <Typo variant="h2">Create account</Typo>
           <Typo variant="small" style={styles.subtitle}>Start tracking your disc golf game</Typo>
         </View>
@@ -180,6 +195,22 @@ const styles = StyleSheet.create({
   backArrow: {
     fontSize: 24,
     color: Colors.primaryBlack,
+  },
+  logoBox: {
+    alignItems: 'center',
+    marginVertical: Spacing.md,
+  },
+  brandIconImg: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  wordmarkImg: {
+    width: 140,
+    height: 32,
+    tintColor: Colors.primaryBlack,
+    marginBottom: 8,
   },
   subtitle: {
     color: Colors.secondaryText,

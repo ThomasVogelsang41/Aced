@@ -1,15 +1,35 @@
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import Constants from 'expo-constants';
 
-const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl as string;
-const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey as string;
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://dsxjuwribfyfpqwokcze.supabase.co';
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  'sb_publishable_T46ltPoWITdNrBTBkhSDuw_KaPkCZYu';
 
-// Secure storage adapter for Supabase session tokens
+// Safe secure storage adapter for Supabase session tokens
 const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {
+      // Ignore write errors if keychain is locked
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {
+      // Ignore delete errors
+    }
+  },
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

@@ -2,7 +2,9 @@ import Constants from 'expo-constants';
 import type { TryDiscsDisc } from '../types/disc';
 
 const BASE_URL = 'https://api.trydiscs.com/v1';
-const API_KEY = Constants.expoConfig?.extra?.tryDiscsApiKey as string;
+const API_KEY =
+  (process.env.EXPO_PUBLIC_TRYDISCS_API_KEY as string) ||
+  (Constants.expoConfig?.extra?.tryDiscsApiKey as string);
 
 const headers = {
   'Authorization': `Bearer ${API_KEY}`,

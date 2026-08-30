@@ -1,49 +1,44 @@
-// ACED Design System — Theme Tokens
+// ACED Design System — Pixel-perfect to product spec & mockups
 
 export const Colors = {
-  // Core backgrounds
-  background: '#FFFFFF',
-  backgroundSoft: '#F7F7F5',
-
-  // Primary text
+  // Brand colors
+  blue: '#0055FF',           // ACED Electric Blue
+  blueLight: '#EDF3FF',      // Subtle blue background tint
+  blueBorder: '#C2D9FF',
   primaryBlack: '#09090A',
-  secondaryText: '#6B6B70',
+  secondaryText: '#6E6E73',
+  tertiaryText: '#8E8E93',
 
-  // Borders & dividers
-  border: '#E7E7E9',
+  // Backgrounds & Surfaces
+  background: '#FFFFFF',
+  backgroundSoft: '#F4F4F6',
+  cardBg: '#FFFFFF',
+  border: '#E8E8ED',
 
-  // ACED Electric Blue (brand)
-  blue: '#145CFF',
-  bluePressed: '#0D46D9',
-  blueLight: '#EBF0FF',  // subtle blue tint for badges/backgrounds
-
-  // Semantic colors
-  green: '#16A34A',       // birdie / positive
-  greenLight: '#DCFCE7',
-  orange: '#EA580C',      // bogey / caution
-  orangeLight: '#FFF0E6',
-  red: '#DC2626',         // error / OB / double bogey+
+  // Semantic status colors
+  green: '#10B981',
+  greenLight: '#D1FAE5',
+  orange: '#F59E0B',
+  orangeLight: '#FEF3C7',
+  red: '#EF4444',
   redLight: '#FEE2E2',
 
   // Neutrals
   white: '#FFFFFF',
   black: '#09090A',
-  gray100: '#F7F7F5',
-  gray200: '#E7E7E9',
+  gray100: '#F4F4F6',
+  gray200: '#E8E8ED',
   gray300: '#D1D1D6',
-  gray400: '#B0B0BA',
-  gray500: '#6B6B70',
-  gray600: '#4A4A52',
-  gray700: '#2E2E35',
+  gray400: '#A1A1AA',
+  gray500: '#6E6E73',
   gray900: '#09090A',
 
-  // Tab bar
-  tabActive: '#145CFF',
-  tabInactive: '#B0B0BA',
+  // Navigation
+  tabActive: '#0055FF',
+  tabInactive: '#A1A1AA',
 } as const;
 
 export const Typography = {
-  // Font families
   fontFamily: {
     regular: 'Inter_400Regular',
     medium: 'Inter_500Medium',
@@ -51,8 +46,6 @@ export const Typography = {
     bold: 'Inter_700Bold',
     extraBold: 'Inter_800ExtraBold',
   },
-
-  // Font sizes
   size: {
     xs: 11,
     sm: 13,
@@ -65,23 +58,6 @@ export const Typography = {
     '4xl': 32,
     '5xl': 40,
   },
-
-  // Line heights
-  lineHeight: {
-    tight: 1.1,
-    snug: 1.25,
-    normal: 1.5,
-    relaxed: 1.625,
-  },
-
-  // Letter spacing
-  letterSpacing: {
-    tight: -0.5,
-    normal: 0,
-    wide: 0.3,
-    wider: 0.8,
-    widest: 1.5,
-  },
 } as const;
 
 export const Spacing = {
@@ -92,49 +68,37 @@ export const Spacing = {
   lg: 20,
   xl: 24,
   '2xl': 32,
-  '3xl': 40,
-  '4xl': 48,
-  '5xl': 64,
 } as const;
 
 export const BorderRadius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 18,
-  '2xl': 24,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  '2xl': 28,
   full: 9999,
-} as const;
-
-export const Shadows = {
-  sm: {
-    shadowColor: '#09090A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  md: {
-    shadowColor: '#09090A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  lg: {
-    shadowColor: '#09090A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 16,
-    elevation: 6,
-  },
 } as const;
 
 export const Layout = {
   screenPaddingH: 20,
   tabBarHeight: 84,
-  headerHeight: 60,
-  cardRadius: 14,
+} as const;
+
+export const Shadows = {
+  sm: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  md: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
 } as const;
 
 export default {
@@ -142,6 +106,6 @@ export default {
   Typography,
   Spacing,
   BorderRadius,
-  Shadows,
   Layout,
+  Shadows,
 };

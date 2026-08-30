@@ -2,7 +2,14 @@ import React, { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/authStore';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
@@ -78,10 +85,6 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="course/[id]"
-          options={{ headerShown: false, presentation: 'card' }}
-        />
-        <Stack.Screen
-          name="disc/[id]"
           options={{ headerShown: false, presentation: 'card' }}
         />
       </Stack>

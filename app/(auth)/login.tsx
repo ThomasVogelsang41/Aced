@@ -7,14 +7,17 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { router, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme';
+import { useAuthStore } from '../../store/authStore';
 
 export default function LoginScreen() {
+  const { loginAsGuest } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,14 +28,17 @@ export default function LoginScreen() {
       setError('Please enter your email and password.');
       return;
     }
-    setIsLoading(true);
-    setError(null);
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    setIsLoading(false);
-    if (authError) {
-      setError(authError.message);
-    } else {
-      router.replace('/(tabs)');
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      setIsLoading(false);
+      if (authError) {
+        setError(authError.message);
+      } else {
+        router.replace('/(tabs)');
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || 'Network error connecting to Supabase.');
     }
   }
 
@@ -46,12 +52,18 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo mark */}
+        {/* Official Brand Logo & Wordmark */}
         <View style={styles.logoBox}>
-          <View style={styles.logoInner}>
-            <Typo style={styles.logoA}>A</Typo>
-          </View>
-          <Typo style={styles.wordmark}>ACED</Typo>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.brandIconImg}
+            resizeMode="contain"
+          />
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.wordmarkImg}
+            resizeMode="contain"
+          />
           <Typo variant="small" style={styles.tagline}>DISC GOLF. ELEVATED.</Typo>
         </View>
 
@@ -105,6 +117,18 @@ export default function LoginScreen() {
             style={styles.cta}
           />
 
+          <Button
+            label="Skip Sign In (Explore App)"
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onPress={() => {
+              loginAsGuest();
+              router.replace('/(tabs)');
+            }}
+            style={{ marginBottom: Spacing.xl }}
+          />
+
           <View style={styles.footer}>
             <Typo variant="small">Don't have an account?</Typo>
             <Link href="/(auth)/signup" asChild>
@@ -131,27 +155,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  logoInner: {
-    width: 72,
-    height: 72,
+  brandIconImg: {
+    width: 80,
+    height: 80,
     borderRadius: 18,
-    backgroundColor: Colors.primaryBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  logoA: {
-    fontFamily: Typography.fontFamily.extraBold,
-    fontSize: 42,
-    color: Colors.white,
-    lineHeight: 50,
-  },
-  wordmark: {
-    fontFamily: Typography.fontFamily.extraBold,
-    fontSize: 28,
-    letterSpacing: 6,
-    color: Colors.primaryBlack,
-    marginBottom: 4,
+  wordmarkImg: {
+    width: 180,
+    height: 40,
+    tintColor: Colors.primaryBlack,
+    marginBottom: 6,
   },
   tagline: {
     color: Colors.secondaryText,

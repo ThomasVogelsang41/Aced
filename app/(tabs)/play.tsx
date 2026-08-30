@@ -20,6 +20,7 @@ import { useRoundStore } from '../../store/roundStore';
 import { useAuthStore } from '../../store/authStore';
 import { useBagStore } from '../../store/bagStore';
 import type { Course } from '../../types/course';
+import { TabHeader } from '../../components/TabHeader';
 
 export default function PlayScreen() {
   const { activeRound } = useRoundStore();
@@ -81,8 +82,8 @@ export default function PlayScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Typo variant="h2" style={styles.title}>Play</Typo>
-        <Typo variant="small" style={styles.subtitle}>Select a course to start your round</Typo>
+        {/* Uniform Top Header */}
+        <TabHeader subtitle="GPS & Smart Caddie" title="Play" />
 
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color={Colors.gray400} />

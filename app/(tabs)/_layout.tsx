@@ -1,58 +1,55 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Typo } from '../../components/ui/Typography';
 import { Colors, Typography, Layout } from '../../constants/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TabIconProps {
-  name: IconName;
-  focusedName: IconName;
+  name?: IconName;
+  focusedName?: IconName;
   focused: boolean;
   label: string;
-  isPlay?: boolean;
+  customIcon?: React.ReactNode;
 }
 
-const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label, isPlay }) => {
-  if (isPlay) {
-    return (
-      <View style={styles.playWrapper}>
-        <View style={[styles.playBtn, focused && styles.playBtnActive]}>
-          <Ionicons
-            name={focused ? focusedName : name}
-            size={24}
-            color={Colors.white}
-          />
-        </View>
-        <Typo
-          style={[
-            styles.tabLabel,
-            { color: focused ? Colors.blue : Colors.tabInactive },
-          ]}
-        >
-          {label}
-        </Typo>
-      </View>
-    );
-  }
-
+const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label, customIcon }) => {
+  const color = focused ? Colors.tabActive : Colors.tabInactive;
   return (
     <View style={styles.tabItem}>
-      <Ionicons
-        name={focused ? focusedName : name}
-        size={24}
-        color={focused ? Colors.tabActive : Colors.tabInactive}
-      />
-      <Typo
-        style={[
-          styles.tabLabel,
-          { color: focused ? Colors.tabActive : Colors.tabInactive },
-        ]}
+      {customIcon ? (
+        customIcon
+      ) : (
+        <Ionicons
+          name={focused ? focusedName! : name!}
+          size={25}
+          color={color}
+        />
+      )}
+      <Text
+        numberOfLines={1}
+        allowFontScaling={false}
+        style={[styles.tabLabel, { color }]}
       >
         {label}
-      </Typo>
+      </Text>
+    </View>
+  );
+};
+
+// Custom Disc Golf Backpack Icon (backpack with top disc pocket slot & disc)
+const DiscGolfBagIcon: React.FC<{ focused: boolean }> = ({ focused }) => {
+  const color = focused ? Colors.tabActive : Colors.tabInactive;
+  return (
+    <View style={styles.discBagContainer}>
+      {/* Disc peeking out top */}
+      <View style={[styles.discPeek, { borderColor: color }]} />
+      {/* Main Backpack Body */}
+      <View style={[styles.backpackBody, { borderColor: color }]}>
+        {/* Front Zip Pocket / Strap */}
+        <View style={[styles.frontPocket, { borderColor: color }]} />
+      </View>
     </View>
   );
 };
@@ -66,6 +63,7 @@ export default function TabsLayout() {
         tabBarShowLabel: false,
       }}
     >
+      {/* Slot 1: Home */}
       <Tabs.Screen
         name="index"
         options={{
@@ -79,6 +77,8 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {/* Slot 2: Map */}
       <Tabs.Screen
         name="courses"
         options={{
@@ -87,11 +87,13 @@ export default function TabsLayout() {
               name="map-outline"
               focusedName="map"
               focused={focused}
-              label="Courses"
+              label="Map"
             />
           ),
         }}
       />
+
+      {/* Slot 3 (Center): Play */}
       <Tabs.Screen
         name="play"
         options={{
@@ -101,24 +103,26 @@ export default function TabsLayout() {
               focusedName="disc"
               focused={focused}
               label="Play"
-              isPlay
             />
           ),
         }}
       />
+
+      {/* Slot 4: Bag (Disc Golf Backpack) */}
       <Tabs.Screen
         name="bag"
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon
-              name="bag-outline"
-              focusedName="bag"
               focused={focused}
               label="Bag"
+              customIcon={<DiscGolfBagIcon focused={focused} />}
             />
           ),
         }}
       />
+
+      {/* Slot 5: Me */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -127,7 +131,7 @@ export default function TabsLayout() {
               name="person-outline"
               focusedName="person"
               focused={focused}
-              label="Profile"
+              label="Me"
             />
           ),
         }}
@@ -142,35 +146,56 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     height: Layout.tabBarHeight,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 10,
+    paddingTop: 10,
     elevation: 0,
   },
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    width: '100%',
   },
   tabLabel: {
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.semiBold,
     fontSize: 10,
     lineHeight: 12,
+    letterSpacing: 0,
+    textAlign: 'center',
   },
-  // Play tab — elevated treatment
-  playWrapper: {
+
+  // Disc Golf Bag Icon Styles
+  discBagContainer: {
+    width: 25,
+    height: 25,
     alignItems: 'center',
-    gap: 3,
+    justifyContent: 'flex-end',
+    position: 'relative',
   },
-  playBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.gray400,
+  discPeek: {
+    position: 'absolute',
+    top: 0,
+    width: 16,
+    height: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderWidth: 1.8,
+    borderBottomWidth: 0,
+  },
+  backpackBody: {
+    width: 20,
+    height: 17,
+    borderRadius: 4,
+    borderWidth: 1.8,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -12,
+    justifyContent: 'flex-end',
+    paddingBottom: 2,
+    backgroundColor: Colors.white,
   },
-  playBtnActive: {
-    backgroundColor: Colors.blue,
+  frontPocket: {
+    width: 14,
+    height: 7,
+    borderRadius: 2,
+    borderWidth: 1.2,
   },
 });

@@ -13,7 +13,7 @@ interface DiscSpinnerProps {
 export const DiscSpinner: React.FC<DiscSpinnerProps> = ({
   size = 40,
   label = 'Loading...',
-  color = Colors.blue,
+  color = Colors.primaryBlack,
 }) => {
   const spinAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0.8)).current;

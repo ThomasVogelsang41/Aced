@@ -13,7 +13,8 @@ import { router, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { useAuthStore } from '../../store/authStore';
 
 export default function LoginScreen() {
@@ -52,13 +53,11 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Official Black Box A Monogram App Icon & Wordmark */}
+        {/* Black Disc Circle Icon Badge & Wordmark */}
         <View style={styles.logoBox}>
-          <Image
-            source={require('../../assets/icon.png')}
-            style={styles.brandIconImg}
-            resizeMode="contain"
-          />
+          <View style={styles.brandCircleBadge}>
+            <Ionicons name="disc" size={42} color={Colors.white} />
+          </View>
           <Image
             source={require('../../assets/logo.png')}
             style={styles.wordmarkImg}
@@ -155,11 +154,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  brandIconImg: {
-    width: 96,
-    height: 96,
-    borderRadius: 22,
-    marginBottom: 12,
+  brandCircleBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    ...Shadows.md,
   },
   wordmarkImg: {
     width: 180,

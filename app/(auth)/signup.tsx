@@ -13,7 +13,8 @@ import { router, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
-import { Colors, Spacing, BorderRadius, Typography } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -87,11 +88,9 @@ export default function SignupScreen() {
             <Typo style={styles.backArrow}>←</Typo>
           </TouchableOpacity>
           <View style={styles.logoBox}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={styles.brandIconImg}
-              resizeMode="contain"
-            />
+            <View style={styles.brandCircleBadge}>
+              <Ionicons name="disc" size={34} color={Colors.white} />
+            </View>
             <Image
               source={require('../../assets/logo.png')}
               style={styles.wordmarkImg}
@@ -200,11 +199,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: Spacing.md,
   },
-  brandIconImg: {
+  brandCircleBadge: {
     width: 64,
     height: 64,
-    borderRadius: 16,
-    marginBottom: 8,
+    borderRadius: 32,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    ...Shadows.md,
   },
   wordmarkImg: {
     width: 140,

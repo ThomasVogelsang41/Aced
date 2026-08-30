@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Image,
-  Dimensions,
-  Platform,
+  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,58 +22,83 @@ import { DiscSpinner } from '../../components/ui/DiscSpinner';
 export default function CoursesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('nearby');
-  const { latitude, longitude, hasPermission, requestLocationPermission } = useLocation();
+  const [isFullScreenMapOpen, setIsFullScreenMapOpen] = useState(false);
+  
+  const { latitude, longitude, isLoading: isLocationLoading, hasPermission, requestLocationPermission } = useLocation();
 
-  const userLat = latitude ?? 42.2514;
-  const userLng = longitude ?? -71.9424;
+  // Search Here State
+  const [targetLat, setTargetLat] = useState<number | null>(null);
+  const [targetLng, setTargetLng] = useState<number | null>(null);
+  const [mapDelta, setMapDelta] = useState<number>(0.08);
+  const [showSearchHere, setShowSearchHere] = useState<boolean>(false);
+  const [isSearchingArea, setIsSearchingArea] = useState<boolean>(false);
 
-  const { data: nearestCourses, isLoading } = useNearestCourses(userLat, userLng);
+  const currentLat = targetLat ?? latitude;
+  const currentLng = targetLng ?? longitude;
 
-  const coursesList = nearestCourses ?? [
-    {
-      id: 'maple-hill',
-      name: 'Maple Hill DGC',
-      city: 'Leicester',
-      state: 'MA',
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: 42.2514,
-      longitude: -71.9424,
-      distanceMiles: 2.1,
-    },
-    {
-      id: 'pine-ridge',
-      name: 'Pine Ridge DGC',
-      city: 'Auburn',
-      state: 'MA',
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: 42.1945,
-      longitude: -71.8359,
-      distanceMiles: 4.8,
-    },
-    {
-      id: 'oak-grove',
-      name: 'Oak Grove DGC',
-      city: 'Pasadena',
-      state: 'CA',
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: 34.1872,
-      longitude: -118.1706,
-      distanceMiles: 8.5,
-    },
-  ];
+  const currentMapCenterRef = useRef({
+    latitude: currentLat ?? 37.7749,
+    longitude: currentLng ?? -122.4194,
+    latitudeDelta: 0.08,
+    longitudeDelta: 0.08,
+  });
 
-  const filtered = searchQuery.trim()
-    ? coursesList.filter((c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.city.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : coursesList;
+  const { data: nearestCourses, isLoading: isCoursesLoading, refetch } = useNearestCourses(currentLat, currentLng);
+
+  // Safety Capping: Maximum 20 courses rendered at any time to prevent API charges or performance slowdowns
+  const MAX_COURSES_LIMIT = 20;
+
+  const rawCoursesList = nearestCourses ?? [];
+  const cappedCoursesList = rawCoursesList.slice(0, MAX_COURSES_LIMIT);
+
+  const filtered = cappedCoursesList.filter((c) => {
+    const matchesSearch = !searchQuery.trim() || (
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.city.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (!matchesSearch) return false;
+
+    if (activeFilter === '18holes') {
+      return c.holeCount >= 18;
+    }
+    if (activeFilter === '9holes') {
+      return c.holeCount < 18;
+    }
+    if (activeFilter === 'under5mi') {
+      return c.distanceMiles !== undefined && c.distanceMiles <= 5;
+    }
+    if (activeFilter === 'verified') {
+      return c.status === 'open';
+    }
+
+    return true;
+  });
+
+  function handleRegionChangeComplete(region: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }) {
+    currentMapCenterRef.current = region;
+    setMapDelta(region.latitudeDelta);
+
+    const anchorLat = targetLat ?? currentLat;
+    const anchorLng = targetLng ?? currentLng;
+
+    if (anchorLat !== null && anchorLng !== null) {
+      const distMoved = Math.abs(region.latitude - anchorLat) + Math.abs(region.longitude - anchorLng);
+      if (distMoved > 0.02) {
+        setShowSearchHere(true);
+      }
+    }
+  }
+
+  async function handleSearchThisArea() {
+    const center = currentMapCenterRef.current;
+    setIsSearchingArea(true);
+    setShowSearchHere(false);
+    setTargetLat(center.latitude);
+    setTargetLng(center.longitude);
+    await refetch();
+    setIsSearchingArea(false);
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -112,54 +135,166 @@ export default function CoursesScreen() {
         {/* Interactive React Native MapView */}
         <AnimatedFadeIn delay={100}>
           <View style={styles.mapContainer}>
-            <MapView
-              style={styles.mapView}
-              provider={PROVIDER_DEFAULT}
-              region={{
-                latitude: userLat,
-                longitude: userLng,
-                latitudeDelta: 0.08,
-                longitudeDelta: 0.08,
-              }}
-              showsUserLocation={true}
-              showsMyLocationButton={true}
-              mapType="standard"
-            >
-              {filtered.map((course) => (
-                <Marker
-                  key={course.id}
-                  coordinate={{
-                    latitude: course.latitude,
-                    longitude: course.longitude,
-                  }}
-                  title={course.name}
-                  description={`${course.holeCount} Holes • ${course.city}, ${course.state}`}
-                >
-                  <View style={styles.customMapPin}>
-                    <Ionicons name="disc" size={14} color={Colors.white} />
-                  </View>
-
-                  <Callout
-                    style={styles.calloutBox}
-                    onPress={() =>
-                      router.push({ pathname: '/course/[id]', params: { id: course.id } })
-                    }
+            {currentLat !== null && currentLng !== null ? (
+              <MapView
+                style={styles.mapView}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={{
+                  latitude: currentLat,
+                  longitude: currentLng,
+                  latitudeDelta: 0.08,
+                  longitudeDelta: 0.08,
+                }}
+                onRegionChangeComplete={handleRegionChangeComplete}
+                showsUserLocation={true}
+                showsMyLocationButton={true}
+                mapType="standard"
+              >
+                {filtered.map((course) => (
+                  <Marker
+                    key={course.id}
+                    coordinate={{
+                      latitude: course.latitude,
+                      longitude: course.longitude,
+                    }}
+                    title={course.name}
+                    description={`${course.holeCount} Holes • ${course.city}, ${course.state}`}
                   >
-                    <View style={styles.calloutInner}>
-                      <Typo variant="bodyMedium" style={styles.calloutTitle}>{course.name}</Typo>
-                      <Typo variant="caption" style={styles.calloutSub}>
-                        {course.holeCount} Holes • {course.distanceMiles ? `${course.distanceMiles.toFixed(1)} mi` : 'Nearby'}
-                      </Typo>
-                      <View style={styles.calloutBtn}>
-                        <Typo style={styles.calloutBtnText}>View Course →</Typo>
-                      </View>
+                    <View style={styles.customMapPin}>
+                      <Ionicons name="disc" size={14} color={Colors.white} />
                     </View>
-                  </Callout>
-                </Marker>
-              ))}
-            </MapView>
+
+                    <Callout
+                      style={styles.calloutBox}
+                      onPress={() =>
+                        router.push({ pathname: '/course/[id]', params: { id: course.id } })
+                      }
+                    >
+                      <View style={styles.calloutInner}>
+                        <Typo variant="bodyMedium" style={styles.calloutTitle}>{course.name}</Typo>
+                        <Typo variant="caption" style={styles.calloutSub}>
+                          {course.holeCount} Holes • {course.distanceMiles ? `${course.distanceMiles.toFixed(1)} mi` : 'Nearby'}
+                        </Typo>
+                        <View style={styles.calloutBtn}>
+                          <Typo style={styles.calloutBtnText}>View Course →</Typo>
+                        </View>
+                      </View>
+                    </Callout>
+                  </Marker>
+                ))}
+              </MapView>
+            ) : (
+              <View style={styles.mapLoadingPlaceholder}>
+                <DiscSpinner label="Acquiring GPS location..." size={36} />
+              </View>
+            )}
+
+            {/* Bottom-Right Full Screen Map Expand Button */}
+            <TouchableOpacity
+              style={styles.fullScreenExpandBtn}
+              activeOpacity={0.85}
+              onPress={() => setIsFullScreenMapOpen(true)}
+            >
+              <Ionicons name="expand-outline" size={18} color={Colors.white} />
+            </TouchableOpacity>
           </View>
         </AnimatedFadeIn>
+
+        {/* Full-Screen Interactive Map Modal */}
+        <Modal
+          visible={isFullScreenMapOpen}
+          animationType="slide"
+          onRequestClose={() => setIsFullScreenMapOpen(false)}
+        >
+          <View style={styles.fullScreenModalContainer}>
+            {currentLat !== null && currentLng !== null ? (
+              <MapView
+                style={styles.fullScreenMapView}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={{
+                  latitude: currentLat,
+                  longitude: currentLng,
+                  latitudeDelta: 0.12,
+                  longitudeDelta: 0.12,
+                }}
+                onRegionChangeComplete={handleRegionChangeComplete}
+                showsUserLocation={true}
+                showsMyLocationButton={true}
+                mapType="standard"
+              >
+                {filtered.map((course) => (
+                  <Marker
+                    key={course.id}
+                    coordinate={{
+                      latitude: course.latitude,
+                      longitude: course.longitude,
+                    }}
+                    title={course.name}
+                    description={`${course.holeCount} Holes • ${course.city}, ${course.state}`}
+                  >
+                    <View style={styles.customMapPin}>
+                      <Ionicons name="disc" size={14} color={Colors.white} />
+                    </View>
+
+                    <Callout
+                      style={styles.calloutBox}
+                      onPress={() => {
+                        setIsFullScreenMapOpen(false);
+                        router.push({ pathname: '/course/[id]', params: { id: course.id } });
+                      }}
+                    >
+                      <View style={styles.calloutInner}>
+                        <Typo variant="bodyMedium" style={styles.calloutTitle}>{course.name}</Typo>
+                        <Typo variant="caption" style={styles.calloutSub}>
+                          {course.holeCount} Holes • {course.distanceMiles ? `${course.distanceMiles.toFixed(1)} mi` : 'Nearby'}
+                        </Typo>
+                        <View style={styles.calloutBtn}>
+                          <Typo style={styles.calloutBtnText}>View Course →</Typo>
+                        </View>
+                      </View>
+                    </Callout>
+                  </Marker>
+                ))}
+              </MapView>
+            ) : null}
+
+            {/* Top-Center Floating Search Pill in Fullscreen */}
+            <SafeAreaView style={styles.fullScreenTopOverlay} edges={['top']}>
+              {mapDelta > 2.5 ? (
+                <View style={styles.zoomNoticePill}>
+                  <Ionicons name="alert-circle-outline" size={14} color={Colors.white} />
+                  <Typo style={styles.zoomNoticeText}>Zoom in closer to search courses</Typo>
+                </View>
+              ) : showSearchHere ? (
+                <TouchableOpacity
+                  style={styles.searchHerePill}
+                  activeOpacity={0.85}
+                  onPress={handleSearchThisArea}
+                >
+                  {isSearchingArea ? (
+                    <DiscSpinner size={16} label="" color={Colors.white} />
+                  ) : (
+                    <>
+                      <Ionicons name="search" size={14} color={Colors.white} />
+                      <Typo style={styles.searchHereText}>Search This Area</Typo>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </SafeAreaView>
+
+            {/* Bottom-Right Minimize/Exit Fullscreen Button */}
+            <SafeAreaView style={styles.bottomRightMinimizeOverlay} edges={['bottom']}>
+              <TouchableOpacity
+                style={styles.closeModalBtn}
+                activeOpacity={0.85}
+                onPress={() => setIsFullScreenMapOpen(false)}
+              >
+                <Ionicons name="contract-outline" size={20} color={Colors.white} />
+              </TouchableOpacity>
+            </SafeAreaView>
+          </View>
+        </Modal>
 
         {/* Search Input */}
         <AnimatedFadeIn delay={180}>
@@ -187,16 +322,49 @@ export default function CoursesScreen() {
               color={activeFilter === 'nearby' ? Colors.white : Colors.primaryBlack}
             />
             <Typo style={[styles.filterText, activeFilter === 'nearby' && styles.filterTextActive]}>
-              Nearby
+              All Nearby
             </Typo>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.filterPill}>
-            <Typo style={styles.filterText}>18 Holes</Typo>
+          <TouchableOpacity
+            style={[styles.filterPill, activeFilter === '18holes' && styles.filterPillActive]}
+            onPress={() => setActiveFilter(activeFilter === '18holes' ? 'nearby' : '18holes')}
+          >
+            <Typo style={[styles.filterText, activeFilter === '18holes' && styles.filterTextActive]}>
+              18+ Holes
+            </Typo>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.filterPill}>
-            <Typo style={styles.filterText}>Verified Layouts</Typo>
+          <TouchableOpacity
+            style={[styles.filterPill, activeFilter === '9holes' && styles.filterPillActive]}
+            onPress={() => setActiveFilter(activeFilter === '9holes' ? 'nearby' : '9holes')}
+          >
+            <Typo style={[styles.filterText, activeFilter === '9holes' && styles.filterTextActive]}>
+              9 Holes
+            </Typo>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterPill, activeFilter === 'under5mi' && styles.filterPillActive]}
+            onPress={() => setActiveFilter(activeFilter === 'under5mi' ? 'nearby' : 'under5mi')}
+          >
+            <Typo style={[styles.filterText, activeFilter === 'under5mi' && styles.filterTextActive]}>
+              &lt; 5 Miles
+            </Typo>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.filterPill, activeFilter === 'verified' && styles.filterPillActive]}
+            onPress={() => setActiveFilter(activeFilter === 'verified' ? 'nearby' : 'verified')}
+          >
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={14}
+              color={activeFilter === 'verified' ? Colors.white : Colors.primaryBlack}
+            />
+            <Typo style={[styles.filterText, activeFilter === 'verified' && styles.filterTextActive]}>
+              Verified Layouts
+            </Typo>
           </TouchableOpacity>
         </ScrollView>
 
@@ -208,8 +376,8 @@ export default function CoursesScreen() {
         </View>
 
         {/* Course Cards List */}
-        {isLoading ? (
-          <DiscSpinner label="Locating nearby disc golf courses..." size={36} />
+        {isLocationLoading || isCoursesLoading ? (
+          <DiscSpinner label="Finding closest disc golf courses..." size={36} />
         ) : (
           filtered.map((course) => (
             <TouchableOpacity
@@ -289,6 +457,56 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.xs,
   },
 
+  // Floating Search Here Pill Styles
+  searchHerePill: {
+    position: 'absolute',
+    top: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primaryBlack,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    ...Shadows.md,
+    zIndex: 99,
+  },
+  searchHereText: {
+    color: Colors.white,
+    fontSize: 11,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  zoomNoticePill: {
+    position: 'absolute',
+    top: 24,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(9, 9, 10, 0.85)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    ...Shadows.sm,
+    zIndex: 99,
+  },
+  zoomNoticeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  fullScreenTopOverlay: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+
   // Interactive Map View
   mapContainer: {
     height: 220,
@@ -297,17 +515,63 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     marginBottom: Spacing.base,
+    position: 'relative',
     ...Shadows.md,
   },
   mapView: {
     width: '100%',
     height: '100%',
   },
+  mapLoadingPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.backgroundSoft,
+  },
+  fullScreenExpandBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.md,
+  },
+
+  // Full Screen Modal Styles
+  fullScreenModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.primaryBlack,
+    position: 'relative',
+  },
+  fullScreenMapView: {
+    width: '100%',
+    height: '100%',
+  },
+  bottomRightMinimizeOverlay: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    zIndex: 999,
+  },
+  closeModalBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.md,
+  },
   customMapPin: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.blue,
+    backgroundColor: Colors.primaryBlack,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

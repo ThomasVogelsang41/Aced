@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,19 +11,22 @@ import {
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Location from 'expo-location';
 import { useAuthStore } from '../store/authStore';
 import { View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 import { DiscSpinner } from '../components/ui/DiscSpinner';
+import { getNearbyCourses } from '../lib/discgolfapi';
 
-// Keep splash screen until fonts + auth are ready
+// Keep splash screen until fonts + auth + GPS course preloading are ready
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 2,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 15 * 60 * 1000,
     },
   },
 });
@@ -37,8 +40,9 @@ export default function RootLayout() {
     Inter_800ExtraBold,
   });
 
-  const { isLoading, session, initialize } = useAuthStore();
+  const { isLoading: isAuthLoading, session, initialize } = useAuthStore();
 
+  // Initialize Auth
   useEffect(() => {
     const cleanup = initialize();
     return () => {
@@ -46,26 +50,57 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Pre-load user GPS location & nearest courses in non-blocking background task
   useEffect(() => {
-    if ((fontsLoaded || fontError) && !isLoading) {
+    async function preloadCourses() {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const lat = loc.coords.latitude;
+          const lng = loc.coords.longitude;
+
+          // Non-blocking pre-fetch into cache
+          queryClient.prefetchQuery({
+            queryKey: ['nearestCourses', lat.toFixed(3), lng.toFixed(3)],
+            queryFn: () => getNearbyCourses(lat, lng, 100),
+          });
+        }
+      } catch (err) {
+        console.warn('GPS course pre-load warning:', err);
+      }
+    }
+
+    preloadCourses();
+  }, []);
+
+  const isReady = (fontsLoaded || fontError) && !isAuthLoading;
+
+  useEffect(() => {
+    if (isReady) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError, isLoading]);
+  }, [isReady]);
 
   // Redirect based on auth state
   useEffect(() => {
-    if (isLoading || (!fontsLoaded && !fontError)) return;
+    if (!isReady) return;
     if (session) {
       router.replace('/(tabs)');
     } else {
       router.replace('/(auth)/login');
     }
-  }, [session, isLoading, fontsLoaded, fontError]);
+  }, [session, isReady]);
 
-  if ((!fontsLoaded && !fontError) || isLoading) {
+  if (!isReady) {
     return (
       <View style={styles.loading}>
-        <DiscSpinner label="Loading ACED..." size={48} />
+        <View style={styles.footerCircleLogoBadge}>
+          <Ionicons name="disc" size={38} color={Colors.white} />
+        </View>
+        <DiscSpinner label="Finding courses near you..." size={32} color={Colors.primaryBlack} />
       </View>
     );
   }
@@ -143,5 +178,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  footerCircleLogoBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: Colors.primaryBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });

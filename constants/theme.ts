@@ -34,7 +34,7 @@ export const Colors = {
   gray900: '#09090A',
 
   // Navigation
-  tabActive: '#0055FF',
+  tabActive: '#09090A',
   tabInactive: '#A1A1AA',
 } as const;
 

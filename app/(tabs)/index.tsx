@@ -32,13 +32,6 @@ function getWeatherIconName(code?: number): React.ComponentProps<typeof Ionicons
   return 'sunny-outline';
 }
 
-const COURSE_IMAGES = [
-  'https://images.unsplash.com/photo-1592919505780-303950717480?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1511497584788-876761465087?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1448375240586-882707db888b?w=500&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=500&auto=format&fit=crop&q=80',
-];
-
 export default function HomeScreen() {
   const { user } = useAuthStore();
   const { latitude, longitude } = useLocation();
@@ -93,17 +86,13 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalScroll}
           >
-            {displayCourses.map((course, idx) => (
+            {displayCourses.map((course) => (
               <TouchableOpacity
                 key={course.id}
                 style={styles.courseCardRow}
                 activeOpacity={0.88}
                 onPress={() => router.push({ pathname: '/course/[id]', params: { id: course.id } })}
               >
-                <Image
-                  source={{ uri: COURSE_IMAGES[idx % COURSE_IMAGES.length] }}
-                  style={styles.courseRowImg}
-                />
                 <View style={styles.courseRowBody}>
                   <View style={styles.courseRowTop}>
                     <Typo style={styles.courseName} numberOfLines={1} ellipsizeMode="tail">
@@ -301,21 +290,14 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   courseCardRow: {
-    width: 265,
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 235,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.sm,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     ...Shadows.sm,
-  },
-  courseRowImg: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.md,
   },
   courseRowBody: {
     flex: 1,

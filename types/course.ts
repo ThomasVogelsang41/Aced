@@ -1,4 +1,4 @@
-// Course types — aligned with DiscGolfAPI + ACED's own hole/layout tables
+// Course types — aligned with DiscGolfAPI + OpenStreetMap Overpass disc_golf feature geometry
 
 export interface DiscGolfApiCourse {
   id: string;
@@ -51,14 +51,26 @@ export interface Course {
   rating?: number;
   status?: 'open' | 'closed' | 'unknown';
   layouts?: CourseLayout[];
+  hasOsmGeometry?: boolean;
 }
 
 export interface CourseLayout {
   id: string;
   courseId: string;
-  name: string;           // "Blue", "White", "Pro"
+  name: string;           // "Main", "Blue", "White", "Pro"
   parTotal: number;
   holes: Hole[];
+  isOsmVerified?: boolean;
+}
+
+export interface Mando {
+  lat: number;
+  lng: number;
+  direction?: string;
+}
+
+export interface OutOfBoundsZone {
+  coordinates: { lat: number; lng: number }[];
 }
 
 export interface Hole {
@@ -72,5 +84,10 @@ export interface Hole {
   teeLng?: number;
   basketLat?: number;
   basketLng?: number;
+  fairwayPath?: { lat: number; lng: number }[];
+  mandos?: Mando[];
+  outOfBounds?: OutOfBoundsZone[];
+  dropZone?: { lat: number; lng: number };
+  isOsmVerified?: boolean;
   notes?: string;
 }

@@ -22,6 +22,8 @@ import { getCourse } from '../../lib/discgolfapi';
 import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import type { Course } from '../../types/course';
 
+import { fetchCourseHoleGeometry } from '../../lib/osmHoleGeometry';
+
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { startRound } = useRoundStore();
@@ -33,6 +35,13 @@ export default function CourseDetailScreen() {
     queryFn: () => getCourse(id),
     enabled: !!id,
     staleTime: 30 * 60 * 1000,
+  });
+
+  const { data: holesGeometry } = useQuery({
+    queryKey: ['courseGeometry', id, course?.latitude, course?.longitude],
+    queryFn: () => fetchCourseHoleGeometry(id!, course!.latitude, course!.longitude, course!.holeCount),
+    enabled: !!course,
+    staleTime: 60 * 60 * 1000,
   });
 
   if (isLoading) {
@@ -56,9 +65,10 @@ export default function CourseDetailScreen() {
     );
   }
 
-  function handleStartRound() {
+  async function handleStartRound() {
     const defaultBag = bags?.find((b) => b.isDefault) ?? bags?.[0];
-    const roundId = startRound(course!, undefined, [], defaultBag?.id);
+    const holesToUse = holesGeometry || await fetchCourseHoleGeometry(course!.id, course!.latitude, course!.longitude, course!.holeCount);
+    const roundId = startRound(course!, undefined, holesToUse, defaultBag?.id);
     router.push({ pathname: '/round/[id]', params: { id: roundId } });
   }
 
@@ -84,11 +94,10 @@ export default function CourseDetailScreen() {
           </Typo>
           <View style={styles.badges}>
             <Badge label={`${course.holeCount} holes`} variant="blue" />
-            {course.status && (
-              <Badge
-                label={course.status === 'closed' ? 'Closed' : 'Open'}
-                variant={course.status === 'closed' ? 'orange' : 'green'}
-              />
+            {holesGeometry?.some((h) => h.isOsmVerified) ? (
+              <Badge label="OSM GPS Hole Geometry" variant="green" />
+            ) : (
+              <Badge label="Standard Layout" variant="gray" />
             )}
           </View>
         </View>
@@ -99,6 +108,11 @@ export default function CourseDetailScreen() {
         <View style={styles.infoGrid}>
           <InfoRow icon="map-outline" label="Location" value={`${course.city}, ${course.state}`} />
           <InfoRow icon="disc-outline" label="Holes" value={String(course.holeCount)} />
+          <InfoRow
+            icon="compass-outline"
+            label="OSM Mapping"
+            value={holesGeometry?.some((h) => h.isOsmVerified) ? "Tees, Baskets & Fairways Mapped" : "Standard Layout"}
+          />
           {course.distanceMiles !== undefined && (
             <InfoRow
               icon="navigate-outline"

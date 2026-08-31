@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Linking,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, Polyline, Circle, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -29,6 +31,8 @@ export default function CourseDetailScreen() {
   const { startRound } = useRoundStore();
   const { user } = useAuthStore();
   const { data: bags } = useBags(user?.id ?? null);
+  const [is3dTourOpen, setIs3dTourOpen] = useState(false);
+  const tourMapRef = useRef<MapView>(null);
 
   const { data: course, isLoading } = useQuery<Course | null>({
     queryKey: ['course', id],
@@ -102,6 +106,37 @@ export default function CourseDetailScreen() {
           </View>
         </View>
 
+        {/* 3D Photorealistic Aerial Course Flyover Hero Card */}
+        <TouchableOpacity
+          style={styles.explore3dHeroCard}
+          activeOpacity={0.88}
+          onPress={() => setIs3dTourOpen(true)}
+        >
+          <View style={styles.explore3dBadgesRow}>
+            <View style={styles.badge3d}>
+              <Ionicons name="cube-outline" size={12} color={Colors.white} />
+              <Typo style={styles.badge3dText}>EXPLORE 3D</Typo>
+            </View>
+            <View style={styles.badgeLive}>
+              <Typo style={styles.badgeLiveText}>PHOTOREALISTIC AERIAL VIEW</Typo>
+            </View>
+          </View>
+
+          <Typo variant="h2" style={styles.hero3dTitle}>
+            3D Aerial Course Preview
+          </Typo>
+          <Typo variant="caption" style={styles.hero3dSub}>
+            Take a cinematic 360° flyover tour of {course.name} fairway corridors & green targets.
+          </Typo>
+
+          <View style={styles.hero3dPlayRow}>
+            <View style={styles.hero3dPlayBtn}>
+              <Ionicons name="videocam" size={16} color={Colors.primaryBlack} />
+              <Typo style={styles.hero3dPlayText}>Launch 3D Flyover</Typo>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         <Divider marginVertical={16} />
 
         {/* Info grid */}
@@ -156,6 +191,76 @@ export default function CourseDetailScreen() {
           icon={<Ionicons name="play" size={18} color={Colors.white} />}
         />
       </View>
+
+      {/* 3D Photorealistic Aerial Course Flyover Modal */}
+      <Modal visible={is3dTourOpen} animationType="slide" onRequestClose={() => setIs3dTourOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: Colors.primaryBlack }}>
+          <MapView
+            ref={tourMapRef}
+            style={StyleSheet.absoluteFillObject}
+            provider={PROVIDER_DEFAULT}
+            mapType="satellite"
+            pitchEnabled={true}
+            rotateEnabled={true}
+            zoomEnabled={true}
+            initialRegion={{
+              latitude: course.latitude,
+              longitude: course.longitude,
+              latitudeDelta: 0.008,
+              longitudeDelta: 0.008,
+            }}
+          >
+            {holesGeometry?.map((hole) => (
+              <React.Fragment key={hole.id}>
+                {hole.teeLat && hole.teeLng && (
+                  <Marker coordinate={{ latitude: hole.teeLat, longitude: hole.teeLng }}>
+                    <View style={styles.tourMarkerTee}>
+                      <Typo style={{ color: Colors.white, fontSize: 9, fontWeight: 'bold' }}>T{hole.holeNumber}</Typo>
+                    </View>
+                  </Marker>
+                )}
+                {hole.basketLat && hole.basketLng && (
+                  <Marker coordinate={{ latitude: hole.basketLat, longitude: hole.basketLng }}>
+                    <View style={styles.tourMarkerBasket}>
+                      <Ionicons name="flag" size={12} color={Colors.white} />
+                    </View>
+                  </Marker>
+                )}
+              </React.Fragment>
+            ))}
+          </MapView>
+
+          <SafeAreaView style={styles.tourHeaderOverlay} pointerEvents="box-none" edges={['top']}>
+            <TouchableOpacity style={styles.tourCloseBtn} onPress={() => setIs3dTourOpen(false)}>
+              <Ionicons name="close" size={20} color={Colors.primaryBlack} />
+            </TouchableOpacity>
+
+            <View style={styles.tourHeaderTitleBox}>
+              <Typo variant="bodyMedium" style={{ color: Colors.white, fontWeight: 'bold' }}>
+                {course.name} 3D Tour
+              </Typo>
+              <Typo variant="caption" style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: 10 }}>
+                Photorealistic Aerial View • {course.holeCount} Holes
+              </Typo>
+            </View>
+
+            <View style={{ width: 44 }} />
+          </SafeAreaView>
+
+          <View style={styles.tourFooterCard}>
+            <Typo variant="bodyMedium" style={{ color: Colors.white, fontWeight: 'bold' }}>
+              Photorealistic 3D Aerial View
+            </Typo>
+            <Typo variant="caption" style={{ color: Colors.gray400, marginTop: 2 }}>
+              Rotate, tilt, and zoom around {course.name}'s fairway corridors & greens.
+            </Typo>
+            <TouchableOpacity style={styles.tourStartBtn} onPress={() => { setIs3dTourOpen(false); handleStartRound(); }}>
+              <Ionicons name="play" size={16} color={Colors.white} />
+              <Typo style={{ color: Colors.white, fontWeight: 'bold' }}>Start Playing Course</Typo>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -218,5 +323,120 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     ...Shadows.md,
+  },
+
+  // EXPLORE 3D Hero Card
+  explore3dHeroCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    ...Shadows.md,
+  },
+  explore3dBadgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badge3d: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.blue,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  badge3dText: { color: Colors.white, fontSize: 9, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  badgeLive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  badgeLiveText: { color: Colors.white, fontSize: 8, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
+  hero3dTitle: { color: Colors.white, fontSize: 18, fontFamily: Typography.fontFamily.bold },
+  hero3dSub: { color: Colors.gray400, fontSize: 11 },
+  hero3dPlayRow: { marginTop: 4 },
+  hero3dPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  hero3dPlayText: { color: Colors.primaryBlack, fontSize: 11, fontFamily: Typography.fontFamily.bold },
+
+  // Tour Overlay Styles
+  tourHeaderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    zIndex: 10,
+  },
+  tourCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.md,
+  },
+  tourHeaderTitleBox: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  tourFooterCard: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.base,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    ...Shadows.md,
+  },
+  tourStartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.blue,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 12,
+    gap: 8,
+    marginTop: 4,
+  },
+  tourMarkerTee: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: Colors.primaryBlack,
+    borderWidth: 1,
+    borderColor: Colors.white,
+  },
+  tourMarkerBasket: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.white,
   },
 });

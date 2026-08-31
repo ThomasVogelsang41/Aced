@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, Circle, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Typo } from '../../components/ui/Typography';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { useRoundStore } from '../../store/roundStore';
@@ -223,6 +223,96 @@ export default function ActiveRoundScreen() {
     return [];
   }, [currentHole, teeCoords, basketCoords]);
 
+  const [isFlyingHole, setIsFlyingHole] = useState(false);
+
+  function handleFlyHole() {
+    if (!mapRef.current || !teeCoords || !basketCoords) return;
+    setIsFlyingHole(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    const initialBearing = getHeadingBearing(teeCoords.latitude, teeCoords.longitude, basketCoords.latitude, basketCoords.longitude);
+    const midLat = (teeCoords.latitude + basketCoords.latitude) / 2;
+    const midLng = (teeCoords.longitude + basketCoords.longitude) / 2;
+
+    // Step 1: Start behind Tee Pad looking forward down fairway with 60 deg 3D tilt
+    mapRef.current.animateCamera(
+      {
+        center: teeCoords,
+        heading: initialBearing,
+        pitch: 60,
+        zoom: 18.5,
+      },
+      { duration: 1200 }
+    );
+
+    // Step 2: Fly forward above the fairway gap & dogleg
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.animateCamera(
+          {
+            center: { latitude: midLat, longitude: midLng },
+            heading: (initialBearing + 15) % 360,
+            pitch: 50,
+            zoom: 18,
+          },
+          { duration: 1500 }
+        );
+      }
+    }, 1400);
+
+    // Step 3: Swoop in toward Basket & start 360 orbit
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.animateCamera(
+          {
+            center: basketCoords,
+            heading: (initialBearing + 180) % 360,
+            pitch: 45,
+            zoom: 18.8,
+          },
+          { duration: 2000 }
+        );
+      }
+    }, 3000);
+
+    // Step 4: Complete 360 orbit around Basket pin
+    setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.animateCamera(
+          {
+            center: basketCoords,
+            heading: (initialBearing + 360) % 360,
+            pitch: 40,
+            zoom: 18.5,
+          },
+          { duration: 2000 }
+        );
+      }
+    }, 5100);
+
+    // Step 5: Return to standard play view
+    setTimeout(() => {
+      setIsFlyingHole(false);
+      if (mapRef.current && currentHole) {
+        const distMeters = (currentHole.distanceFt || 300) * 0.3048;
+        const offsetMeters = distMeters * 0.48;
+        const reverseRad = (initialBearing - 180) * (Math.PI / 180);
+        const latOffset = (offsetMeters / 111320) * Math.cos(reverseRad);
+        const lngOffset = (offsetMeters / (111320 * Math.cos(basketCoords.latitude * (Math.PI / 180)))) * Math.sin(reverseRad);
+
+        mapRef.current.animateCamera(
+          {
+            center: { latitude: basketCoords.latitude + latOffset, longitude: basketCoords.longitude + lngOffset },
+            heading: initialBearing,
+            zoom: Math.max(16.2, Math.min(18.2, 19.5 - distMeters / 120)),
+            pitch: 0,
+          },
+          { duration: 900 }
+        );
+      }
+    }, 7200);
+  }
+
   // Build smart recommended obstacle-avoidance throw line
   const recommendedThrowCoords = React.useMemo(() => {
     if (teeCoords && basketCoords) {
@@ -328,6 +418,27 @@ export default function ActiveRoundScreen() {
             </View>
           </Marker>
         )}
+
+        {/* 3D Circle 1 (33ft) and Circle 2 (66ft) Distance Rings */}
+        {basketCoords && (
+          <>
+            <Circle
+              center={basketCoords}
+              radius={10.05}
+              strokeColor="rgba(59, 130, 246, 0.8)"
+              fillColor="rgba(59, 130, 246, 0.15)"
+              strokeWidth={1.5}
+            />
+            <Circle
+              center={basketCoords}
+              radius={20.1}
+              strokeColor="rgba(59, 130, 246, 0.4)"
+              fillColor="rgba(59, 130, 246, 0.05)"
+              strokeWidth={1}
+              lineDashPattern={[4, 4]}
+            />
+          </>
+        )}
       </MapView>
 
       {/* Top Floating Controls & Header Overlay */}
@@ -378,6 +489,14 @@ export default function ActiveRoundScreen() {
 
         {/* Right Map Type Action Buttons */}
         <View style={styles.rightActionStack}>
+          {/* 3D Cinematic Flyover Button */}
+          <TouchableOpacity
+            style={[styles.blueCircleAction, isFlyingHole && { backgroundColor: '#D97706' }]}
+            onPress={handleFlyHole}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={isFlyingHole ? "pause" : "videocam"} size={22} color={Colors.white} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.blueCircleAction}
             onPress={() => {

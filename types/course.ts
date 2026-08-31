@@ -2,18 +2,38 @@
 
 export interface DiscGolfApiCourse {
   id: string;
+  slug?: string;
   name: string;
-  location: {
+  lat?: number;
+  lon?: number;
+  latitude?: number;
+  longitude?: number;
+  locality?: string;
+  city?: string;
+  region_code?: string;
+  state?: string;
+  country_code?: string;
+  country?: string;
+  holes?: number;
+  hole_count?: number;
+  holes_count?: number;
+  operational_status?: string;
+  primary_layout?: {
+    id?: string;
+    name?: string;
+    holes?: number;
+    par_total?: number | null;
+    length_meters?: number | null;
+  };
+  location?: {
     city: string;
     state: string;
     country: string;
     latitude: number;
     longitude: number;
   };
-  hole_count: number;
   rating?: number;
   status?: 'open' | 'closed' | 'unknown';
-  pdga_id?: string;
 }
 
 export interface Course {
@@ -25,6 +45,8 @@ export interface Course {
   latitude: number;
   longitude: number;
   holeCount: number;
+  totalDistanceFt?: number;
+  parTotal?: number;
   distanceMiles?: number;  // computed at runtime
   rating?: number;
   status?: 'open' | 'closed' | 'unknown';

@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -171,10 +172,18 @@ export default function CoursesScreen() {
                       }
                     >
                       <View style={styles.calloutInner}>
-                        <Typo variant="bodyMedium" style={styles.calloutTitle}>{course.name}</Typo>
-                        <Typo variant="caption" style={styles.calloutSub}>
-                          {course.holeCount} Holes • {course.distanceMiles ? `${course.distanceMiles.toFixed(1)} mi` : 'Nearby'}
+                        <Typo variant="bodyMedium" style={styles.calloutTitle} numberOfLines={1}>{course.name}</Typo>
+                        <Typo variant="caption" style={styles.calloutLocation}>
+                          {course.state ? `${course.city}, ${course.state}` : course.city}
                         </Typo>
+                        <Typo variant="caption" style={styles.calloutSub}>
+                          {course.holeCount} Holes{course.totalDistanceFt ? ` • ${course.totalDistanceFt.toLocaleString()} ft` : ''}
+                        </Typo>
+                        {course.distanceMiles !== undefined && (
+                          <Typo variant="caption" style={styles.calloutDistance}>
+                            {course.distanceMiles.toFixed(1)} mi away
+                          </Typo>
+                        )}
                         <View style={styles.calloutBtn}>
                           <Typo style={styles.calloutBtnText}>View Course →</Typo>
                         </View>
@@ -244,10 +253,18 @@ export default function CoursesScreen() {
                       }}
                     >
                       <View style={styles.calloutInner}>
-                        <Typo variant="bodyMedium" style={styles.calloutTitle}>{course.name}</Typo>
-                        <Typo variant="caption" style={styles.calloutSub}>
-                          {course.holeCount} Holes • {course.distanceMiles ? `${course.distanceMiles.toFixed(1)} mi` : 'Nearby'}
+                        <Typo variant="bodyMedium" style={styles.calloutTitle} numberOfLines={1}>{course.name}</Typo>
+                        <Typo variant="caption" style={styles.calloutLocation}>
+                          {course.state ? `${course.city}, ${course.state}` : course.city}
                         </Typo>
+                        <Typo variant="caption" style={styles.calloutSub}>
+                          {course.holeCount} Holes{course.totalDistanceFt ? ` • ${course.totalDistanceFt.toLocaleString()} ft` : ''}
+                        </Typo>
+                        {course.distanceMiles !== undefined && (
+                          <Typo variant="caption" style={styles.calloutDistance}>
+                            {course.distanceMiles.toFixed(1)} mi away
+                          </Typo>
+                        )}
                         <View style={styles.calloutBtn}>
                           <Typo style={styles.calloutBtnText}>View Course →</Typo>
                         </View>
@@ -393,7 +410,7 @@ export default function CoursesScreen() {
                 <View style={{ flex: 1 }}>
                   <Typo variant="bodyMedium" style={styles.courseTitle}>{course.name}</Typo>
                   <Typo variant="caption" style={styles.courseLocation}>
-                    {course.city}, {course.state}
+                    {course.state ? `${course.city}, ${course.state}` : course.city}
                   </Typo>
                 </View>
                 {course.distanceMiles !== undefined && (
@@ -405,7 +422,7 @@ export default function CoursesScreen() {
 
               <View style={styles.cardFooterRow}>
                 <Typo variant="caption" style={styles.holesText}>
-                  {course.holeCount} Holes • Par 58
+                  {course.holeCount} Holes{course.totalDistanceFt ? ` • ${course.totalDistanceFt.toLocaleString()} ft` : ''}{course.parTotal ? ` • Par ${course.parTotal}` : ''}
                 </Typo>
                 <View style={styles.ratingRow}>
                   <Ionicons name="star" size={12} color={Colors.primaryBlack} />
@@ -416,7 +433,18 @@ export default function CoursesScreen() {
           ))
         )}
 
-        <View style={{ height: 40 }} />
+        {/* Subtle Data Attribution */}
+        <TouchableOpacity
+          style={styles.attributionBox}
+          activeOpacity={0.7}
+          onPress={() => Linking.openURL('https://discgolfapi.com')}
+        >
+          <Typo variant="caption" style={styles.attributionText}>
+            Course data supplied by DiscGolfAPI.
+          </Typo>
+        </TouchableOpacity>
+
+        <View style={{ height: 30 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -426,6 +454,19 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
   content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+
+  attributionBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  attributionText: {
+    color: Colors.gray400,
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    textAlign: 'center',
+  },
 
   // Location Permission Banner
   locationPermissionBanner: {
@@ -579,19 +620,29 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   calloutBox: {
-    width: 160,
+    width: 175,
     padding: Spacing.xs,
   },
   calloutInner: {
-    gap: 4,
+    gap: 3,
   },
   calloutTitle: {
     fontSize: 12,
     fontFamily: Typography.fontFamily.bold,
   },
+  calloutLocation: {
+    fontSize: 10,
+    color: Colors.blue,
+    fontFamily: Typography.fontFamily.medium,
+  },
   calloutSub: {
     fontSize: 10,
     color: Colors.secondaryText,
+  },
+  calloutDistance: {
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primaryBlack,
   },
   calloutBtn: {
     backgroundColor: Colors.blue,

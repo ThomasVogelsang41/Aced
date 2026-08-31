@@ -119,7 +119,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.courseRowBottom}>
                     <Typo style={styles.courseHoles} numberOfLines={1} ellipsizeMode="tail">
-                      {course.holeCount} Holes • {course.city}
+                      {course.holeCount} Holes • {course.state ? `${course.city}, ${course.state}` : course.city}
                     </Typo>
                     <View style={styles.ratingRow}>
                       <Ionicons name="star" size={11} color={Colors.primaryBlack} />

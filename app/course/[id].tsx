@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -116,6 +117,16 @@ export default function CourseDetailScreen() {
             GPS hole distances are available for courses with ACED-verified layouts. Distances for unverified courses use hole estimates.
           </Typo>
         </View>
+        {/* Subtle Data Attribution */}
+        <TouchableOpacity
+          style={styles.attributionBox}
+          activeOpacity={0.7}
+          onPress={() => Linking.openURL('https://discgolfapi.com')}
+        >
+          <Typo variant="caption" style={styles.attributionText}>
+            Course data supplied by DiscGolfAPI.
+          </Typo>
+        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -175,6 +186,18 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   gpsNoteText: { flex: 1, color: Colors.secondaryText },
+  attributionBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 16,
+  },
+  attributionText: {
+    color: Colors.gray400,
+    fontSize: 10,
+    fontFamily: Typography.fontFamily.medium,
+    textAlign: 'center',
+  },
   stickyBottom: {
     padding: Spacing.lg,
     backgroundColor: Colors.white,

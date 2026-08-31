@@ -1,36 +1,20 @@
-import { Course } from '../types/course';
+import type { Course, DiscGolfApiCourse } from '../types/course';
+import * as Location from 'expo-location';
 
-const BASE_URL = process.env.EXPO_PUBLIC_DISCGOLF_API_URL || 'https://io.discgolfapi.com/v1';
+const BASE_URL = 'https://io.discgolfapi.com/v1';
 
-export interface DiscGolfApiCourse {
-  id: string;
-  name: string;
-  country_code?: string;
-  region_code?: string;
-  city?: string;
-  state?: string;
-  latitude?: number;
-  longitude?: number;
-  holes_count?: number;
-  rating?: number;
-  image_url?: string;
-}
-
-// In-memory registry storing all active fetched courses so no course tap ever returns null
+// In-memory course registry cache to instantly resolve course by ID
 const COURSE_REGISTRY = new Map<string, Course>();
-
-// Geocoding cache map
 const GEOCODE_CACHE = new Map<string, { city: string; state: string; parkName?: string }>();
 
-// Haversine distance formula in miles
 function getDistanceInMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3958.8; // Radius of the Earth in miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const R = 3958.8; // Earth radius in miles
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -38,40 +22,65 @@ function getDistanceInMiles(lat1: number, lon1: number, lat2: number, lon2: numb
 }
 
 /**
- * Reverse geocode latitude and longitude using OpenStreetMap Nominatim for exact real-world park & location info
+ * Reverse geocode latitude and longitude using native Expo Location / BigDataCloud for exact real-world city & state info
  */
 async function reverseGeocodeLocation(lat: number, lng: number): Promise<{ city: string; state: string; parkName?: string }> {
-  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
   if (GEOCODE_CACHE.has(cacheKey)) {
     return GEOCODE_CACHE.get(cacheKey)!;
   }
 
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`,
-      {
-        headers: {
-          'User-Agent': 'ACED-DiscGolfApp/1.0',
-        },
-      }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const addr = data.address || {};
-      const park = addr.park || addr.leisure || addr.amenity || addr.recreation_ground;
-      const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || 'Local Area';
-      const state = addr.state || addr.country_code?.toUpperCase() || 'GPS Verified';
-
-      const result = { city, state, parkName: park };
+    const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    if (results && results.length > 0) {
+      const addr = results[0];
+      const city = addr.city || addr.subregion || addr.district || addr.region || 'Disc Golf Area';
+      const state = addr.region || addr.isoCountryCode || '';
+      const result = { city, state, parkName: addr.name || undefined };
       GEOCODE_CACHE.set(cacheKey, result);
       return result;
     }
   } catch (err) {
-    console.warn('Reverse geocode warning:', err);
+    try {
+      const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+      if (res.ok) {
+        const data = await res.json();
+        const city = data.locality || data.city || data.principalSubdivision || 'Disc Golf Area';
+        const state = data.principalSubdivisionCode ? data.principalSubdivisionCode.replace(/^[A-Z]{2}-/, '') : '';
+        const result = { city, state };
+        GEOCODE_CACHE.set(cacheKey, result);
+        return result;
+      }
+    } catch (e) {
+      console.warn('Fallback geocode error:', e);
+    }
   }
 
-  return { city: 'Local Area', state: 'GPS Verified' };
+  return { city: 'Disc Golf Area', state: '' };
+}
+
+let API_COURSES_CACHE: DiscGolfApiCourse[] | null = null;
+
+async function fetchDiscGolfApiCatalog(): Promise<DiscGolfApiCourse[]> {
+  if (API_COURSES_CACHE && API_COURSES_CACHE.length > 0) return API_COURSES_CACHE;
+  try {
+    const res = await fetch(`${BASE_URL}/courses`);
+    if (res.ok) {
+      const data = await res.json();
+      API_COURSES_CACHE = data.courses || [];
+      return API_COURSES_CACHE || [];
+    }
+  } catch (err) {
+    console.warn('DiscGolfAPI catalog fetch error:', err);
+  }
+  return [];
+}
+
+function getApiCourseCoords(c: DiscGolfApiCourse): { lat: number; lng: number } | null {
+  const lat = c.lat ?? c.latitude ?? c.location?.latitude;
+  const lng = c.lon ?? c.longitude ?? c.location?.longitude;
+  if (lat && lng) return { lat, lng };
+  return null;
 }
 
 /**
@@ -79,45 +88,90 @@ async function reverseGeocodeLocation(lat: number, lng: number): Promise<{ city:
  */
 async function fetchOverpassNearbyCourses(lat: number, lng: number, radiusMeters = 100000): Promise<Course[]> {
   try {
-    const query = `[out:json][timeout:12];(node["leisure"="disc_golf_course"](around:${radiusMeters},${lat},${lng});way["leisure"="disc_golf_course"](around:${radiusMeters},${lat},${lng});node["sport"="disc_golf"](around:${radiusMeters},${lat},${lng});way["sport"="disc_golf"](around:${radiusMeters},${lat},${lng}););out center;`;
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-    
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    
+    const query = `[out:json][timeout:25];(node["leisure"="disc_golf_course"](around:${radiusMeters},${lat},${lng});way["leisure"="disc_golf_course"](around:${radiusMeters},${lat},${lng});relation["leisure"="disc_golf_course"](around:${radiusMeters},${lat},${lng}););out center;`;
+    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+    if (!res.ok) throw new Error(`Overpass API error ${res.status}`);
     const data = await res.json();
-    if (!data.elements || data.elements.length === 0) return [];
+
+    if (!data.elements || data.elements.length === 0) {
+      return [];
+    }
+
+    const apiCoursesCatalog = await fetchDiscGolfApiCatalog();
 
     const coursesPromises = data.elements.map(async (el: any, idx: number) => {
       const cLat = el.lat || el.center?.lat || lat;
       const cLng = el.lon || el.center?.lon || lng;
 
-      // Extract explicit tags
-      let nameTag = el.tags?.name || el.tags?.['name:en'] || el.tags?.description || el.tags?.operator;
+      let nameTag = el.tags?.name || el.tags?.['name:en'] || el.tags?.description || el.tags?.operator || el.tags?.official_name || el.tags?.alt_name;
       let cityTag = el.tags?.['addr:city'] || el.tags?.is_in || el.tags?.['addr:suburb'];
       let stateTag = el.tags?.['addr:state'];
 
-      // If city or state missing, fetch real-world reverse geocode details
-      if (!cityTag || !stateTag || !nameTag) {
-        const geoInfo = await reverseGeocodeLocation(cLat, cLng);
-        if (!cityTag) cityTag = geoInfo.city;
-        if (!stateTag) stateTag = geoInfo.state;
-        if (!nameTag && geoInfo.parkName) nameTag = geoInfo.parkName;
+      // Cross-reference with DiscGolfAPI database by GPS distance (< 3 miles) to get official course name
+      if (!nameTag) {
+        let closestApiCourse: DiscGolfApiCourse | null = null;
+        let minDist = 3.0;
+
+        for (const apiC of apiCoursesCatalog) {
+          const coords = getApiCourseCoords(apiC);
+          if (coords) {
+            const d = getDistanceInMiles(cLat, cLng, coords.lat, coords.lng);
+            if (d < minDist) {
+              minDist = d;
+              closestApiCourse = apiC;
+            }
+          }
+        }
+
+        if (closestApiCourse && closestApiCourse.name) {
+          nameTag = closestApiCourse.name;
+          if (!cityTag) cityTag = closestApiCourse.locality || closestApiCourse.city;
+          if (!stateTag) stateTag = closestApiCourse.region_code || closestApiCourse.state;
+        }
       }
 
-      const formattedName = nameTag
-        ? (nameTag.toLowerCase().includes('disc') || nameTag.toLowerCase().includes('dgc') ? nameTag : `${nameTag} Disc Golf Course`)
-        : `Disc Golf Course #${idx + 1}`;
+      // Reverse geocode details for exact real-world city & state if missing
+      const geoInfo = await reverseGeocodeLocation(cLat, cLng);
+      if (!cityTag) {
+        cityTag = geoInfo.city;
+      }
+      if (!stateTag) {
+        stateTag = geoInfo.state;
+      }
+
+      if (!nameTag) {
+        nameTag = geoInfo.parkName && !geoInfo.parkName.match(/^\d+$/)
+          ? `${geoInfo.parkName} Disc Golf Course`
+          : `${geoInfo.city} Disc Golf Course`;
+      }
 
       const holes = parseInt(el.tags?.holes || el.tags?.holeCount || '18', 10);
+      const holeCount = isNaN(holes) ? 18 : holes;
+      
+      let totalDistanceFt: number | undefined = undefined;
+      if (el.tags?.length || el.tags?.distance) {
+        const rawLen = String(el.tags.length || el.tags.distance);
+        const parsedNum = parseFloat(rawLen.replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsedNum)) {
+          totalDistanceFt = rawLen.toLowerCase().includes('m') ? Math.round(parsedNum * 3.28084) : Math.round(parsedNum);
+        }
+      }
+
+      let parTotal: number | undefined = undefined;
+      if (el.tags?.par) {
+        const parsedPar = parseInt(el.tags.par, 10);
+        if (!isNaN(parsedPar)) parTotal = parsedPar;
+      }
 
       const courseObj: Course = {
         id: `osm-${el.id || idx}`,
-        name: formattedName,
-        city: cityTag || 'Local Area',
-        state: stateTag || 'GPS Verified',
+        name: nameTag,
+        city: cityTag,
+        state: stateTag,
         country: 'US',
-        holeCount: isNaN(holes) ? 18 : holes,
+        holeCount: holeCount,
+        totalDistanceFt: totalDistanceFt,
+        parTotal: parTotal,
         status: 'open',
         latitude: cLat,
         longitude: cLng,
@@ -145,7 +199,7 @@ export async function getCoursesByCountry(
   offset: number = 0
 ): Promise<DiscGolfApiCourse[]> {
   try {
-    const res = await fetch(`${BASE_URL}/courses?country=${countryCode}&limit=${limit}&offset=${offset}`);
+    const res = await fetch(`${BASE_URL}/courses`);
     if (!res.ok) throw new Error(`DiscGolfAPI error ${res.status}`);
     const data = await res.json();
     return data.courses || [];
@@ -164,104 +218,70 @@ export async function getNearbyCourses(
     return [];
   }
 
-  // 1. Query real OpenStreetMap Overpass live GPS query for user's exact coordinates
+  // 1. Primary Source: DiscGolfAPI Official Database sorted by distance from user's live GPS coordinates
+  try {
+    const apiCourses = await fetchDiscGolfApiCatalog();
+    if (apiCourses.length > 0) {
+      const liveMappedPromises = apiCourses.map(async (c) => {
+        const coords = getApiCourseCoords(c);
+        if (!coords) return null;
+
+        const dist = getDistanceInMiles(userLat, userLng, coords.lat, coords.lng);
+        
+        let city = c.locality || c.city || c.region_code;
+        let state = c.region_code || c.state || c.country_code || c.country || '';
+        if (!city || city === 'US' || city.length <= 2) {
+          const geoInfo = await reverseGeocodeLocation(coords.lat, coords.lng);
+          city = geoInfo.city;
+          if (!state || state === 'US') state = geoInfo.state;
+        }
+
+        const totalDistFt = c.primary_layout?.length_meters
+          ? Math.round(c.primary_layout.length_meters * 3.28084)
+          : undefined;
+        const parTotal = c.primary_layout?.par_total || undefined;
+
+        const courseObj: Course = {
+          id: c.id,
+          name: c.name, // Official real-world DiscGolfAPI course name (e.g. Maple Hill, Pyramids, Buffumville Dam, etc.)
+          city: city,
+          state: state === 'US' ? '' : state,
+          country: c.country_code || c.country || 'US',
+          holeCount: c.holes || c.hole_count || c.holes_count || 18,
+          totalDistanceFt: totalDistFt,
+          parTotal: parTotal,
+          status: 'open' as const,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          distanceMiles: dist,
+        };
+        COURSE_REGISTRY.set(courseObj.id, courseObj);
+        return courseObj;
+      });
+
+      const liveMappedResults = await Promise.all(liveMappedPromises);
+      const liveMapped = liveMappedResults.filter((c): c is Course => c !== null);
+      
+      // Filter to courses within user's search radius (or closest courses)
+      const nearbySorted = liveMapped
+        .filter((c) => c.distanceMiles! <= maxDistanceMiles)
+        .sort((a, b) => a.distanceMiles! - b.distanceMiles!);
+
+      if (nearbySorted.length > 0) {
+        return nearbySorted;
+      }
+    }
+  } catch (err) {
+    console.warn('DiscGolfAPI primary fetch error:', err);
+  }
+
+  // 2. Secondary Source: OpenStreetMap Overpass live GPS query
   const osmRealCourses = await fetchOverpassNearbyCourses(userLat, userLng, maxDistanceMiles * 1609.34);
   if (osmRealCourses.length > 0) {
     return osmRealCourses;
   }
 
-  // 2. Query DiscGolfAPI endpoint sorted by distance from user's live GPS coordinates
-  try {
-    const apiCourses = await getCoursesByCountry('US', 50, 0);
-    if (apiCourses.length > 0) {
-      const liveMapped: Course[] = apiCourses
-        .filter((c) => c.latitude && c.longitude)
-        .map((c) => {
-          const dist = getDistanceInMiles(userLat, userLng, c.latitude!, c.longitude!);
-          const courseObj: Course = {
-            id: c.id,
-            name: c.name,
-            city: c.city || c.region_code || 'Local Area',
-            state: c.state || c.country_code || 'GPS Verified',
-            country: c.country_code || 'US',
-            holeCount: c.holes_count || 18,
-            status: 'open' as const,
-            latitude: c.latitude!,
-            longitude: c.longitude!,
-            distanceMiles: dist,
-          };
-          COURSE_REGISTRY.set(courseObj.id, courseObj);
-          return courseObj;
-        })
-        .sort((a, b) => a.distanceMiles! - b.distanceMiles!);
-
-      if (liveMapped.length > 0) {
-        return liveMapped;
-      }
-    }
-  } catch (err) {
-    console.warn('DiscGolfAPI fallback:', err);
-  }
-
-  // 3. Dynamically reverse-geocode user's exact GPS position so cluster displays user's real city & state
-  const userGeoInfo = await reverseGeocodeLocation(userLat, userLng);
-  const city = userGeoInfo.city;
-  const state = userGeoInfo.state;
-  const parkName = userGeoInfo.parkName || city;
-
-  const localizedCourses: Course[] = [
-    {
-      id: `user-local-1`,
-      name: `${parkName} Disc Golf Course`,
-      city: city,
-      state: state,
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: userLat + 0.012,
-      longitude: userLng - 0.008,
-      distanceMiles: getDistanceInMiles(userLat, userLng, userLat + 0.012, userLng - 0.008),
-    },
-    {
-      id: `user-local-2`,
-      name: `${city} Ridge DGC`,
-      city: city,
-      state: state,
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: userLat - 0.018,
-      longitude: userLng + 0.014,
-      distanceMiles: getDistanceInMiles(userLat, userLng, userLat - 0.018, userLng + 0.014),
-    },
-    {
-      id: `user-local-3`,
-      name: `Pines DGC at ${city}`,
-      city: city,
-      state: state,
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: userLat + 0.026,
-      longitude: userLng + 0.021,
-      distanceMiles: getDistanceInMiles(userLat, userLng, userLat + 0.026, userLng + 0.021),
-    },
-    {
-      id: `user-local-4`,
-      name: `${city} Community Park DGC`,
-      city: city,
-      state: state,
-      country: 'US',
-      holeCount: 18,
-      status: 'open',
-      latitude: userLat - 0.032,
-      longitude: userLng - 0.025,
-      distanceMiles: getDistanceInMiles(userLat, userLng, userLat - 0.032, userLng - 0.025),
-    },
-  ];
-
-  localizedCourses.forEach((c) => COURSE_REGISTRY.set(c.id, c));
-  return localizedCourses.sort((a, b) => (a.distanceMiles ?? 0) - (b.distanceMiles ?? 0));
+  return [];
 }
 
 /**
@@ -275,19 +295,21 @@ export async function getCourseById(id: string): Promise<Course | null> {
 
   // 2. Query remote API
   try {
-    const res = await fetch(`${BASE_URL}/courses/${id}`);
-    if (res.ok) {
-      const data: DiscGolfApiCourse = await res.json();
+    const apiCatalog = await fetchDiscGolfApiCatalog();
+    const found = apiCatalog.find((c) => c.id === id);
+    if (found) {
+      const coords = getApiCourseCoords(found) || { lat: 37.7749, lng: -122.4194 };
+      const geoInfo = await reverseGeocodeLocation(coords.lat, coords.lng);
       const courseObj: Course = {
-        id: data.id,
-        name: data.name,
-        city: data.city || data.region_code || 'Local Area',
-        state: data.state || data.country_code || 'GPS Verified',
-        country: data.country_code || 'US',
-        holeCount: data.holes_count || 18,
+        id: found.id,
+        name: found.name,
+        city: found.locality || found.city || geoInfo.city,
+        state: found.region_code || found.state || geoInfo.state,
+        country: found.country_code || 'US',
+        holeCount: found.holes || found.hole_count || 18,
         status: 'open',
-        latitude: data.latitude || 37.7749,
-        longitude: data.longitude || -122.4194,
+        latitude: coords.lat,
+        longitude: coords.lng,
       };
       COURSE_REGISTRY.set(courseObj.id, courseObj);
       return courseObj;
@@ -296,26 +318,7 @@ export async function getCourseById(id: string): Promise<Course | null> {
     console.warn('DiscGolfAPI course fetch error:', err);
   }
 
-  // 3. Construct a graceful fallback course object so NO course screen ever shows "Course not found"
-  const formattedIdName = id
-    .replace(/^(osm-|user-local-)/, '')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (l) => l.toUpperCase());
-
-  const fallbackCourse: Course = {
-    id: id,
-    name: formattedIdName.includes('Course') || formattedIdName.includes('Dgc') ? formattedIdName : `${formattedIdName} DGC`,
-    city: 'Local Area',
-    state: 'GPS Verified',
-    country: 'US',
-    holeCount: 18,
-    status: 'open',
-    latitude: 37.7749,
-    longitude: -122.4194,
-  };
-
-  COURSE_REGISTRY.set(id, fallbackCourse);
-  return fallbackCourse;
+  return null;
 }
 
 export const getCourse = getCourseById;

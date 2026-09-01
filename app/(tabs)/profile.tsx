@@ -9,6 +9,7 @@ import {
   FlatList,
   ActivityIndicator,
   Image,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,13 +17,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
+import * as Haptics from 'expo-haptics';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
 import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import { useAuthStore } from '../../store/authStore';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
 
-type ProfileSubTab = 'profile' | 'stats' | 'bag' | 'shop';
+type ProfileSubTab = 'profile' | 'friends' | 'settings';
 
 const MOCK_RECENT = [
   { course: 'Maple Hill DGC', date: 'May 18, 2025', diff: '-4', score: 54, color: Colors.blue },
@@ -132,20 +134,44 @@ const MOCK_SHOP_ITEMS = [
   },
 ];
 
+const MOCK_FRIENDS = [
+  { id: 'f-1', name: 'Jake Miller', username: 'jakemiller', handicap: 3.0, isLive: true, currentCourse: 'Maple Hill DGC' },
+  { id: 'f-2', name: 'Mike Chen', username: 'mikechen', handicap: 12.4, isLive: true, currentCourse: 'Maple Hill DGC' },
+  { id: 'f-3', name: 'Sarah Jenkins', username: 'sarahj', handicap: 6.8, isLive: false },
+  { id: 'f-4', name: 'David Ross', username: 'dross', handicap: 14.1, isLive: false },
+];
+
+const MOCK_LIVE_GAMES = [
+  {
+    id: 'lg-1',
+    courseName: 'Maple Hill Disc Golf Course',
+    gameType: 'Skins Game',
+    players: ['Jake Miller', 'Mike Chen', 'Sarah Jenkins'],
+    currentHole: 8,
+    statusText: '🔥 4 SKINS CARRYING ON HOLE 8',
+    leaderboard: [
+      { name: 'Jake Miller', score: '3 skins', totalStrokes: 24, rel: '-2' },
+      { name: 'Sarah Jenkins', score: '2 skins', totalStrokes: 26, rel: 'E' },
+      { name: 'Mike Chen', score: '1 skin', totalStrokes: 28, rel: '+2' },
+    ],
+  },
+];
+
 export default function ProfileScreen() {
   const { user, signOut } = useAuthStore();
-  const [activeSegment, setActiveSegment] = useState<ProfileSubTab>('profile');
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [discSearch, setDiscSearch] = useState('');
+  const [activeSegment, setActiveSegment] = useState<'profile' | 'friends' | 'settings'>('profile');
+  const [addFriendModalVisible, setAddFriendModalVisible] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [isAllRoundsModalVisible, setIsAllRoundsModalVisible] = useState(false);
+
+  // Native Settings Switch States
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [weatherAlertsEnabled, setWeatherAlertsEnabled] = useState(true);
+  const [gpsHighPrecision, setGpsHighPrecision] = useState(true);
+  const [publicProfile, setPublicProfile] = useState(true);
 
   const userName = user?.user_metadata?.username ?? user?.email?.split('@')[0] ?? 'Ricky';
-
-  const { data: searchResults, isLoading: searchLoading } = useQuery({
-    queryKey: ['discSearch', discSearch],
-    queryFn: () => searchDiscs({ query: discSearch, limit: 20 }),
-    enabled: discSearch.trim().length >= 2,
-    staleTime: 10 * 60 * 1000,
-  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -157,19 +183,21 @@ export default function ProfileScreen() {
       {/* Segmented Sub Nav Control */}
       <AnimatedFadeIn delay={100}>
         <View style={styles.segmentContainer}>
-          {(['profile', 'stats', 'bag', 'shop'] as const).map((seg) => {
+          {(['profile', 'friends', 'settings'] as const).map((seg) => {
             const isAct = activeSegment === seg;
-            const labels: Record<ProfileSubTab, string> = {
+            const labels: Record<string, string> = {
               profile: 'Profile',
-              stats: 'Stats',
-              bag: 'My Bag',
-              shop: 'Shop',
+              friends: 'Friends',
+              settings: 'Settings',
             };
             return (
               <TouchableOpacity
                 key={seg}
                 style={[styles.segmentBtn, isAct && styles.segmentBtnActive]}
-                onPress={() => setActiveSegment(seg)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setActiveSegment(seg as any);
+                }}
               >
                 <Typo style={[styles.segmentText, isAct && styles.segmentTextActive]}>
                   {labels[seg]}
@@ -185,36 +213,56 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* SEGMENT 1: PROFILE / ACCOUNT */}
+        {/* TAB 1: PROFILE */}
         {activeSegment === 'profile' && (
           <View style={styles.tabContent}>
-            <View style={styles.cardSection}>
-              <Typo variant="label" style={styles.sectionLabel}>PLAYER SETTINGS</Typo>
-              <SettingItem icon="person-outline" label="Throwing Style" value="RHBH (Right-Hand Backhand)" />
-              <SettingItem icon="speedometer-outline" label="Handicap" value="+2.4" />
-              <SettingItem icon="navigate-outline" label="Distance Units" value="Feet (ft)" />
+            {/* Guest/Golfer User Overview Hero Card */}
+            <View style={styles.userProfileHeroCard}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person" size={32} color={Colors.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Typo variant="h2" style={{ fontWeight: 'bold' }}>{userName}</Typo>
+                <Typo variant="caption" style={{ color: Colors.secondaryText }}>@{userName.toLowerCase()} • Member since 2024</Typo>
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                  <View style={styles.handicapBadgeHero}>
+                    <Typo style={{ fontSize: 10, fontWeight: 'bold', color: Colors.white }}>ACED +2.4</Typo>
+                  </View>
+                  <View style={styles.roundsBadgeHero}>
+                    <Typo style={{ fontSize: 10, fontWeight: 'bold', color: Colors.primaryBlack }}>182 Rounds</Typo>
+                  </View>
+                </View>
+              </View>
             </View>
 
-            <View style={styles.cardSection}>
-              <Typo variant="label" style={styles.sectionLabel}>APP SETTINGS</Typo>
-              <SettingItem icon="notifications-outline" label="Course Notifications" value="Enabled" />
-              <SettingItem icon="cloud-outline" label="Weather Alerts" value="Enabled" />
-              <SettingItem icon="shield-checkmark-outline" label="Privacy & Security" value="Public Profile" />
-            </View>
-
-            <TouchableOpacity style={styles.signOutBtn} onPress={signOut}>
-              <Ionicons name="log-out-outline" size={18} color={Colors.red} />
-              <Typo style={styles.signOutText}>Sign Out</Typo>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* SEGMENT 2: STATS */}
-        {activeSegment === 'stats' && (
-          <View style={styles.tabContent}>
-            {/* Recent Rounds */}
+            {/* CAREER BEST RECORD */}
             <View style={styles.sectionHeader}>
-              <Typo variant="label" style={styles.sectionTitle}>RECENT ROUNDS</Typo>
+              <Typo variant="label" style={styles.sectionTitle}>CAREER BEST RECORD</Typo>
+            </View>
+            <View style={styles.personalBestBanner}>
+              <View style={styles.starBox}>
+                <Ionicons name="star" size={20} color={Colors.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Typo variant="caption" style={styles.pbLabel}>PERSONAL BEST</Typo>
+                <Typo variant="bodyMedium" style={styles.pbTitle}>Career best round</Typo>
+                <Typo variant="caption" style={styles.pbSub}>-7 at Maple Hill DGC</Typo>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Typo variant="display" style={styles.pbScoreVal}>-7</Typo>
+                <Typo variant="caption" style={styles.pbDate}>Apr 12, 2025</Typo>
+              </View>
+            </View>
+
+            {/* RECENT ROUNDS HISTORY */}
+            <View style={styles.sectionHeader}>
+              <Typo variant="label" style={styles.sectionTitle}>RECENT ROUNDS HISTORY</Typo>
+              <TouchableOpacity onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsAllRoundsModalVisible(true);
+              }}>
+                <Typo style={styles.seeAllText}>See All →</Typo>
+              </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
               {MOCK_RECENT.map((item, i) => (
@@ -233,60 +281,7 @@ export default function ProfileScreen() {
               ))}
             </ScrollView>
 
-            {/* Personal Best Banner */}
-            <View style={styles.personalBestBanner}>
-              <View style={styles.starBox}>
-                <Ionicons name="star" size={20} color={Colors.white} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Typo variant="caption" style={styles.pbLabel}>PERSONAL BEST</Typo>
-                <Typo variant="bodyMedium" style={styles.pbTitle}>Career best round</Typo>
-                <Typo variant="caption" style={styles.pbSub}>-7 at Maple Hill DGC</Typo>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Typo variant="display" style={styles.pbScoreVal}>-7</Typo>
-                <Typo variant="caption" style={styles.pbDate}>Apr 12, 2025</Typo>
-              </View>
-            </View>
-
-            {/* Performance Overview */}
-            <View style={styles.sectionHeader}>
-              <Typo variant="label" style={styles.sectionTitle}>PERFORMANCE OVERVIEW</Typo>
-            </View>
-            <View style={styles.overviewGrid}>
-              <View style={styles.gaugeCard}>
-                <Typo variant="caption" style={styles.gaugeTitle}>Fairway Hits</Typo>
-                <View style={styles.circleGauge}>
-                  <Typo variant="h3" style={styles.gaugeNum}>71%</Typo>
-                </View>
-                <View style={styles.trendRow}>
-                  <Ionicons name="arrow-up" size={12} color={Colors.green} />
-                  <Typo style={styles.trendText}>8% vs last 20</Typo>
-                </View>
-              </View>
-              <View style={styles.gaugeCard}>
-                <Typo variant="caption" style={styles.gaugeTitle}>C1 Putting</Typo>
-                <View style={styles.circleGauge}>
-                  <Typo variant="h3" style={styles.gaugeNum}>82%</Typo>
-                </View>
-                <View style={styles.trendRow}>
-                  <Ionicons name="arrow-up" size={12} color={Colors.green} />
-                  <Typo style={styles.trendText}>6% vs last 20</Typo>
-                </View>
-              </View>
-              <View style={styles.gaugeCard}>
-                <Typo variant="caption" style={styles.gaugeTitle}>Avg Drive</Typo>
-                <View style={styles.circleGauge}>
-                  <Typo variant="h3" style={styles.gaugeNum}>312 ft</Typo>
-                </View>
-                <View style={styles.trendRow}>
-                  <Ionicons name="arrow-up" size={12} color={Colors.green} />
-                  <Typo style={styles.trendText}>15 ft vs last 20</Typo>
-                </View>
-              </View>
-            </View>
-
-            {/* Breakdown */}
+            {/* PERFORMANCE BREAKDOWN */}
             <View style={styles.sectionHeader}>
               <Typo variant="label" style={styles.sectionTitle}>PERFORMANCE BREAKDOWN</Typo>
             </View>
@@ -309,132 +304,185 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* SEGMENT 3: MY BAG */}
-        {activeSegment === 'bag' && (
+        {/* TAB 2: FRIENDS */}
+        {activeSegment === 'friends' && (
           <View style={styles.tabContent}>
-            <View style={styles.bagHeaderRow}>
-              <Typo variant="label" style={styles.sectionTitle}>DISCS IN BAG ({MOCK_BAG_DISCS.length})</Typo>
-              <Button
-                label="Add Disc"
-                variant="primary"
-                size="sm"
-                icon={<Ionicons name="add" size={16} color={Colors.white} />}
-                onPress={() => setAddModalVisible(true)}
-              />
-            </View>
+            {/* Add Friend Banner */}
+            <TouchableOpacity style={styles.addFriendBanner} onPress={() => setAddFriendModalVisible(true)}>
+              <Ionicons name="person-add" size={18} color={Colors.white} />
+              <Typo style={{ color: Colors.white, fontWeight: 'bold', fontSize: 13 }}>+ Add Friend by Handle</Typo>
+            </TouchableOpacity>
 
-            {MOCK_BAG_DISCS.map((disc) => (
-              <View key={disc.id} style={[styles.discCard, disc.featured && styles.discCardFeatured]}>
-                <View style={styles.cardMainRow}>
-                  <View style={[styles.discArtwork, { backgroundColor: disc.color }]}>
-                    <Typo style={[styles.discArtworkText, { color: disc.discTextColor }]}>
-                      {disc.name.toUpperCase()}
-                    </Typo>
+            {/* MY FRIENDS LIST */}
+            <View style={styles.cardSection}>
+              <Typo variant="label" style={styles.sectionLabel}>MY FRIENDS ({MOCK_FRIENDS.length})</Typo>
+              {MOCK_FRIENDS.map((f) => (
+                <View key={f.id} style={styles.friendRow}>
+                  <Ionicons name="person-circle-outline" size={32} color={Colors.primaryBlack} />
+                  <View style={{ flex: 1 }}>
+                    <Typo style={{ fontWeight: 'bold', fontSize: 14 }}>{f.name}</Typo>
+                    <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>@{f.username} • ACED {f.handicap}</Typo>
                   </View>
-                  <View style={styles.discMetaInfo}>
-                    <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
-                    <Typo variant="caption" style={styles.discBrandText}>{disc.brand} • {disc.plastic}</Typo>
-                    <View style={styles.flightGrid}>
-                      <View style={styles.flightBoxItem}><Typo variant="bodyMedium">{disc.speed}</Typo><Typo variant="caption">SPEED</Typo></View>
-                      <View style={styles.flightBoxItem}><Typo variant="bodyMedium">{disc.glide}</Typo><Typo variant="caption">GLIDE</Typo></View>
-                      <View style={styles.flightBoxItem}><Typo variant="bodyMedium">{disc.turn}</Typo><Typo variant="caption">TURN</Typo></View>
-                      <View style={styles.flightBoxItem}><Typo variant="bodyMedium">{disc.fade}</Typo><Typo variant="caption">FADE</Typo></View>
-                    </View>
-                  </View>
-                  <View style={styles.rightStatsCol}>
-                    {disc.confidence && (
-                      <View style={styles.confidenceBadge}>
-                        <Typo style={styles.confidenceText}>{disc.confidence} CONFIDENCE</Typo>
-                      </View>
-                    )}
-                    <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
-                    <Typo variant="caption" style={styles.statSubLabel}>AVG DISTANCE</Typo>
-                  </View>
-                </View>
-              </View>
-            ))}
-
-            <Typo variant="caption" style={styles.attribution}>{TRYDISCS_ATTRIBUTION.text}</Typo>
-          </View>
-        )}
-
-        {/* SEGMENT 4: SHOP */}
-        {activeSegment === 'shop' && (
-          <View style={styles.tabContent}>
-            <View style={styles.sectionHeader}>
-              <Typo variant="label" style={styles.sectionTitle}>ACED GEAR & DISCS</Typo>
-            </View>
-            <View style={styles.shopGrid}>
-              {MOCK_SHOP_ITEMS.map((item) => (
-                <View key={item.id} style={styles.shopCard}>
-                  <Image source={{ uri: item.image }} style={styles.shopImg} />
-                  <View style={styles.shopTagPill}>
-                    <Typo style={styles.shopTagText}>{item.tag}</Typo>
-                  </View>
-                  <View style={styles.shopBody}>
-                    <Typo variant="bodyMedium" style={styles.shopTitle} numberOfLines={2}>{item.title}</Typo>
-                    <Typo variant="caption" style={styles.shopCat}>{item.category}</Typo>
-                    <View style={styles.shopBottomRow}>
-                      <Typo variant="h3" style={styles.shopPrice}>{item.price}</Typo>
-                      <TouchableOpacity style={styles.buyBtn}>
-                        <Ionicons name="cart-outline" size={16} color={Colors.white} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  <View style={[styles.statusDot, f.isLive ? styles.statusDotLive : styles.statusDotOnline]} />
+                  <Typo style={styles.statusText}>{f.isLive ? 'In Round' : 'Online'}</Typo>
                 </View>
               ))}
             </View>
           </View>
         )}
 
+        {/* TAB 3: SETTINGS */}
+        {activeSegment === 'settings' && (
+          <View style={styles.tabContent}>
+            <View style={styles.cardSection}>
+              <Typo variant="label" style={styles.sectionLabel}>APP & GOLFER SETTINGS</Typo>
+              <View style={styles.settingsGroupCard}>
+                {/* Native Toggle 1 */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="phone-portrait-outline" size={18} color={Colors.primaryBlack} />
+                    <Typo variant="bodyMedium">Haptics & Buzz</Typo>
+                  </View>
+                  <Switch
+                    value={hapticsEnabled}
+                    onValueChange={(val) => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setHapticsEnabled(val);
+                    }}
+                    trackColor={{ false: Colors.border, true: Colors.blue }}
+                  />
+                </View>
+                <View style={styles.settingDivider} />
+
+                {/* Native Toggle 2 */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="notifications-outline" size={18} color={Colors.primaryBlack} />
+                    <Typo variant="bodyMedium">Course Notifications</Typo>
+                  </View>
+                  <Switch
+                    value={notificationsEnabled}
+                    onValueChange={setNotificationsEnabled}
+                    trackColor={{ false: Colors.border, true: Colors.blue }}
+                  />
+                </View>
+                <View style={styles.settingDivider} />
+
+                {/* Native Toggle 3 */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="cloud-outline" size={18} color={Colors.primaryBlack} />
+                    <Typo variant="bodyMedium">Weather Alerts</Typo>
+                  </View>
+                  <Switch
+                    value={weatherAlertsEnabled}
+                    onValueChange={setWeatherAlertsEnabled}
+                    trackColor={{ false: Colors.border, true: Colors.blue }}
+                  />
+                </View>
+                <View style={styles.settingDivider} />
+
+                {/* Native Toggle 4 */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="location-outline" size={18} color={Colors.primaryBlack} />
+                    <Typo variant="bodyMedium">GPS High Precision Mode</Typo>
+                  </View>
+                  <Switch
+                    value={gpsHighPrecision}
+                    onValueChange={setGpsHighPrecision}
+                    trackColor={{ false: Colors.border, true: Colors.blue }}
+                  />
+                </View>
+                <View style={styles.settingDivider} />
+
+                {/* Native Toggle 5 */}
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleLeft}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primaryBlack} />
+                    <Typo variant="bodyMedium">Public Profile</Typo>
+                  </View>
+                  <Switch
+                    value={publicProfile}
+                    onValueChange={setPublicProfile}
+                    trackColor={{ false: Colors.border, true: Colors.blue }}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.signOutBtn} onPress={signOut}>
+              <Ionicons name="log-out-outline" size={18} color={Colors.red} />
+              <Typo style={styles.signOutText}>Sign Out</Typo>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Disc Search Modal */}
-      <Modal
-        visible={addModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setAddModalVisible(false)}
-      >
-        <SafeAreaView style={styles.modal} edges={['top']}>
+      {/* ADD FRIEND MODAL */}
+      <Modal visible={addFriendModalVisible} animationType="slide" onRequestClose={() => setAddFriendModalVisible(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
           <View style={styles.modalHeader}>
-            <Typo variant="h3">Search Discs</Typo>
-            <TouchableOpacity onPress={() => setAddModalVisible(false)}>
-              <Ionicons name="close" size={24} color={Colors.primaryBlack} />
+            <Typo variant="h2" style={{ fontWeight: 'bold' }}>Add Friend</Typo>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setAddFriendModalVisible(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
             </TouchableOpacity>
           </View>
-          <View style={styles.modalSearch}>
+          <View style={{ padding: Spacing.lg, gap: 12 }}>
             <View style={styles.searchBar}>
               <Ionicons name="search" size={18} color={Colors.gray400} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search catalog..."
+                placeholder="Search username or email..."
                 placeholderTextColor={Colors.gray400}
-                value={discSearch}
-                onChangeText={setDiscSearch}
-                autoFocus
+                value={friendSearchQuery}
+                onChangeText={setFriendSearchQuery}
               />
-              {searchLoading && <DiscSpinner size={20} label="" />}
             </View>
+            <Button
+              label="Send Friend Request"
+              variant="primary"
+              size="md"
+              fullWidth
+              onPress={() => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setAddFriendModalVisible(false);
+                setFriendSearchQuery('');
+              }}
+            />
           </View>
-          <FlatList
-            data={searchResults ?? []}
-            keyExtractor={(item) => `${item.brand}:${item.disc}`}
-            contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.searchResultRow}
-                onPress={() => setAddModalVisible(false)}
-              >
+        </SafeAreaView>
+      </Modal>
+
+      {/* FULL ROUND HISTORY MODAL */}
+      <Modal visible={isAllRoundsModalVisible} animationType="slide" onRequestClose={() => setIsAllRoundsModalVisible(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Round History</Typo>
+              <Typo variant="caption" style={{ color: Colors.secondaryText }}>All completed rounds ({MOCK_RECENT.length})</Typo>
+            </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setIsAllRoundsModalVisible(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 10 }}>
+            {MOCK_RECENT.map((item, idx) => (
+              <View key={idx} style={styles.fullRoundCard}>
                 <View style={{ flex: 1 }}>
-                  <Typo variant="bodyMedium">{item.disc}</Typo>
-                  <Typo variant="caption">{item.brand}</Typo>
+                  <Typo style={{ fontWeight: 'bold', fontSize: 16 }}>{item.course}</Typo>
+                  <Typo style={{ color: Colors.secondaryText, fontSize: 12 }}>{item.date} • Main Layout</Typo>
                 </View>
-                <Ionicons name="add-circle" size={24} color={Colors.blue} />
-              </TouchableOpacity>
-            )}
-          />
+                <View style={styles.fullRoundScoreBox}>
+                  <Typo style={{ fontSize: 18, fontWeight: 'bold' }}>{item.score}</Typo>
+                  <Typo style={{ fontSize: 11, fontWeight: 'bold', color: item.color }}>({item.diff})</Typo>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -465,18 +513,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
     marginBottom: Spacing.md,
   },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.primaryBlack,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: { fontSize: 24, color: Colors.white, fontFamily: Typography.fontFamily.bold },
-  userName: { fontSize: 24, fontFamily: Typography.fontFamily.bold },
-  userEmail: { color: Colors.secondaryText, fontSize: Typography.size.xs },
 
   // Segment Bar
   segmentContainer: {
@@ -508,8 +544,6 @@ const styles = StyleSheet.create({
   },
 
   tabContent: { gap: Spacing.base },
-
-  // Profile Cards
   cardSection: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
@@ -519,6 +553,18 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     ...Shadows.sm,
   },
+  seeAllText: { color: Colors.blue, fontWeight: 'bold', fontSize: 12 },
+  fullRoundCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: 12,
+  },
+  fullRoundScoreBox: { alignItems: 'flex-end' },
   sectionLabel: { fontSize: Typography.size.xs, color: Colors.secondaryText, fontFamily: Typography.fontFamily.semiBold, letterSpacing: 0.8 },
   settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   settingLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -604,9 +650,91 @@ const styles = StyleSheet.create({
 
   // Modal
   modal: { flex: 1, backgroundColor: Colors.white },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 52,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   modalSearch: { padding: Spacing.lg },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.base, paddingVertical: 12, gap: Spacing.sm },
   searchInput: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.size.base, color: Colors.primaryBlack, padding: 0 },
   searchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // User Overview Hero Card & Settings Group
+  userProfileHeroCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+    ...Shadows.sm,
+  },
+  avatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  handicapBadgeHero: { backgroundColor: Colors.blue, paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.full },
+  roundsBadgeHero: { backgroundColor: Colors.backgroundSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: BorderRadius.full },
+  settingsGroupCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    ...Shadows.sm,
+  },
+  settingDivider: { height: 1, backgroundColor: Colors.border },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  toggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+
+  // Friends & Live Games
+  addFriendBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryBlack, borderRadius: BorderRadius.xl, paddingVertical: 12, gap: 8, marginBottom: 8 },
+  liveGroupSection: { gap: 8, marginBottom: 12 },
+  liveGroupHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveIndicatorPulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  liveGameCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.xl, borderWidth: 1.5, borderColor: Colors.blue, padding: Spacing.md, gap: 8, ...Shadows.sm },
+  liveGameTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gameTypeBadge: { backgroundColor: Colors.backgroundSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  liveGameStatusRow: { backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.md },
+  liveGameStatusText: { color: '#92400E', fontWeight: 'bold', fontSize: 11 },
+  joinLiveScoreboardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.blue, borderRadius: BorderRadius.lg, paddingVertical: 10, gap: 6 },
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusDotLive: { backgroundColor: '#EF4444' },
+  statusDotOnline: { backgroundColor: '#10B981' },
+  statusText: { fontSize: 10, fontWeight: 'bold', color: Colors.secondaryText },
+  liveScoreboardStatusBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primaryBlack, padding: Spacing.md, borderRadius: BorderRadius.xl, gap: 8 },
+  liveLeaderboardRow: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, gap: 10 },
+  liveLeaderboardRank: { fontWeight: 'bold', fontSize: 16, width: 20, textAlign: 'center' },
+  liveScoreChip: { backgroundColor: Colors.blueLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.full },
+  liveScoreChipText: { color: Colors.blue, fontWeight: 'bold', fontSize: 12 },
 });

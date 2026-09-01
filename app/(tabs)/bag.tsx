@@ -12,12 +12,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
-import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
 
 const MOCK_BAG_DISCS = [
@@ -103,8 +103,43 @@ const MOCK_BAG_DISCS = [
   },
 ];
 
+const MOCK_SHOP_ITEMS = [
+  {
+    id: 'volt-aced',
+    title: 'ACED Pro Volt (Special Edition)',
+    category: 'Discs',
+    price: '$24.99',
+    tag: 'Bestseller',
+    icon: 'disc-outline',
+  },
+  {
+    id: 'hoodie',
+    title: 'ACED Tour Hoodie (Black)',
+    category: 'Apparel',
+    price: '$68.00',
+    tag: 'New',
+    icon: 'shirt-outline',
+  },
+  {
+    id: 'rangefinder',
+    title: 'ACED Laser GPS Rangefinder',
+    category: 'Gear',
+    price: '$189.00',
+    tag: 'Pro Tech',
+    icon: 'navigate-outline',
+  },
+  {
+    id: 'caddie-pass',
+    title: 'ACED Smart Caddie Pro (1 Year)',
+    category: 'Subscription',
+    price: '$29.99/yr',
+    tag: 'Popular',
+    icon: 'sparkles-outline',
+  },
+];
+
 export default function BagScreen() {
-  const [activeSubTab, setActiveSubTab] = useState<'discs' | 'insights' | 'trends'>('discs');
+  const [activeSubTab, setActiveSubTab] = useState<'discs' | 'shop'>('discs');
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [discSearch, setDiscSearch] = useState('');
 
@@ -119,17 +154,20 @@ export default function BagScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Uniform Top Header */}
       <AnimatedFadeIn delay={0} style={{ paddingHorizontal: Spacing.lg }}>
-        <TabHeader subtitle="Disc Inventory" title="My Bag" />
+        <TabHeader subtitle="Disc Inventory & Gear" title="My Bag" />
       </AnimatedFadeIn>
 
-      {/* Sub Tabs */}
+      {/* Sub Tabs: Discs | Pro Shop */}
       <AnimatedFadeIn delay={100}>
         <View style={styles.subTabsRow}>
-          {(['discs', 'insights', 'trends'] as const).map((tab) => (
+          {(['discs', 'shop'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.subTabItem, activeSubTab === tab && styles.subTabItemActive]}
-              onPress={() => setActiveSubTab(tab)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveSubTab(tab);
+              }}
             >
               <Typo
                 style={[
@@ -137,7 +175,7 @@ export default function BagScreen() {
                   activeSubTab === tab && styles.subTabTextActive,
                 ]}
               >
-                {tab === 'discs' ? 'Discs' : tab === 'insights' ? 'Flight Matrix' : 'In My Bag'}
+                {tab === 'discs' ? 'Discs Inventory' : 'Pro Shop'}
               </Typo>
             </TouchableOpacity>
           ))}
@@ -149,139 +187,138 @@ export default function BagScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Disc List */}
-        {MOCK_BAG_DISCS.map((disc) => (
-          <View
-            key={disc.id}
-            style={[
-              styles.discCard,
-              disc.featured && styles.discCardFeatured,
-            ]}
-          >
-            <View style={styles.cardMainRow}>
-              {/* Render Circle Disc Artwork */}
-              <View style={[styles.discArtwork, { backgroundColor: disc.color }]}>
-                <Typo style={[styles.discArtworkText, { color: disc.discTextColor }]}>
-                  {disc.name.toUpperCase()}
-                </Typo>
-              </View>
+        {activeSubTab === 'discs' ? (
+          <>
+            {/* Add Disc CTA */}
+            <TouchableOpacity style={styles.addDiscBanner} onPress={() => setAddModalVisible(true)}>
+              <Ionicons name="add-circle" size={20} color={Colors.white} />
+              <Typo style={styles.addDiscText}>Add New Disc to Bag</Typo>
+            </TouchableOpacity>
 
-              <View style={styles.discMetaInfo}>
-                <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
-                <Typo variant="caption" style={styles.discBrandText}>
-                  {disc.brand} • {disc.plastic}
-                </Typo>
-
-                {/* Flight numbers grid */}
-                <View style={styles.flightGrid}>
-                  <FlightBox val={disc.speed} label="SPEED" />
-                  <FlightBox val={disc.glide} label="GLIDE" />
-                  <FlightBox val={disc.turn} label="TURN" />
-                  <FlightBox val={disc.fade} label="FADE" />
-                </View>
-              </View>
-
-              {/* Right Stats Box */}
-              <View style={styles.rightStatsCol}>
-                {disc.confidence && (
-                  <View style={styles.confidenceBadge}>
-                    <Typo style={styles.confidenceText}>{disc.confidence} CONFIDENCE</Typo>
+            {/* Disc List */}
+            {MOCK_BAG_DISCS.map((disc) => (
+              <View
+                key={disc.id}
+                style={[
+                  styles.discCard,
+                  disc.featured && styles.discCardFeatured,
+                ]}
+              >
+                <View style={styles.cardMainRow}>
+                  {/* Render Circle Disc Artwork */}
+                  <View style={[styles.discArtwork, { backgroundColor: disc.color }]}>
+                    <Typo style={[styles.discArtworkText, { color: disc.discTextColor }]}>
+                      {disc.name.toUpperCase()}
+                    </Typo>
                   </View>
-                )}
-                <View style={styles.statGroup}>
-                  <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
-                  <Typo variant="caption" style={styles.statSubLabel}>AVG DISTANCE</Typo>
-                </View>
-                <View style={styles.statGroup}>
-                  <Typo variant="bodyMedium" style={styles.usageValue}>{disc.usage}</Typo>
-                  <Typo variant="caption" style={styles.statSubLabel}>USAGE</Typo>
+
+                  <View style={styles.discMetaInfo}>
+                    <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
+                    <Typo variant="caption" style={styles.discBrandText}>
+                      {disc.brand} • {disc.plastic}
+                    </Typo>
+
+                    {/* Flight numbers grid */}
+                    <View style={styles.flightGrid}>
+                      <FlightBox val={disc.speed} label="SPEED" />
+                      <FlightBox val={disc.glide} label="GLIDE" />
+                      <FlightBox val={disc.turn} label="TURN" />
+                      <FlightBox val={disc.fade} label="FADE" />
+                    </View>
+                  </View>
+
+                  {/* Right Stats Box */}
+                  <View style={styles.rightStatsCol}>
+                    {disc.confidence && (
+                      <View style={styles.confidenceBadge}>
+                        <Typo style={styles.confidenceText}>{disc.confidence} CONF</Typo>
+                      </View>
+                    )}
+                    <View style={styles.statGroup}>
+                      <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
+                      <Typo variant="caption" style={styles.statSubLabel}>AVG DISTANCE</Typo>
+                    </View>
+                    <View style={styles.statGroup}>
+                      <Typo variant="bodyMedium" style={styles.usageValue}>{disc.usage}</Typo>
+                      <Typo variant="caption" style={styles.statSubLabel}>USAGE</Typo>
+                    </View>
+                  </View>
                 </View>
               </View>
-            </View>
+            ))}
+          </>
+        ) : (
+          /* PRO SHOP TAB INTEGRATED IN BAG */
+          <View style={styles.shopGrid}>
+            <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8, marginBottom: 8 }}>
+              OFFICIAL ACED PRO SHOP
+            </Typo>
+            {MOCK_SHOP_ITEMS.map((item) => (
+              <View key={item.id} style={styles.shopCard}>
+                <View style={styles.shopIconBadge}>
+                  <Ionicons name={item.icon as any} size={28} color={Colors.primaryBlack} />
+                </View>
+                <View style={styles.shopCardBody}>
+                  <View style={styles.shopTagBadge}>
+                    <Typo style={styles.shopTagText}>{item.tag}</Typo>
+                  </View>
+                  <Typo style={styles.shopItemTitle}>{item.title}</Typo>
+                  <Typo style={styles.shopItemPrice}>{item.price}</Typo>
+                  <Button label="Buy Now" variant="primary" size="sm" style={{ marginTop: 8 }} />
+                </View>
+              </View>
+            ))}
           </View>
-        ))}
-
-        {/* Best disc for this hole bottom recommendation card */}
-        <View style={styles.holeRecCard}>
-          <TouchableOpacity style={styles.holeRecHeader}>
-            <View>
-              <Typo variant="bodyMedium" style={styles.holeRecTitle}>Best disc for this hole</Typo>
-              <Typo variant="caption" style={styles.holeRecSub}>Hole 6 • Par 4 • 412 ft</Typo>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.primaryBlack} />
-          </TouchableOpacity>
-
-          <View style={styles.holeRecBody}>
-            <View style={[styles.discArtworkSmall, { backgroundColor: Colors.blue }]}>
-              <Typo style={styles.discArtworkTextSmall}>VOLT</Typo>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Typo variant="bodyMedium" style={styles.holeRecDiscName}>Volt</Typo>
-              <Typo variant="caption" style={styles.holeRecBrand}>MVP Neutron</Typo>
-            </View>
-            <View style={styles.recConfidenceBadge}>
-              <Typo style={styles.recConfidenceText}>92% CONFIDENCE</Typo>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Typo variant="bodyMedium" style={styles.expectedVal}>276 ft</Typo>
-              <Typo variant="caption" style={styles.statSubLabel}>EXPECTED</Typo>
-            </View>
-          </View>
-        </View>
-
-        {/* TryDiscs attribution */}
-        <Typo variant="caption" style={styles.attribution}>
-          {TRYDISCS_ATTRIBUTION.text}
-        </Typo>
-
-        <View style={{ height: 40 }} />
+        )}
       </ScrollView>
 
-      {/* Add Disc Modal */}
-      <Modal
-        visible={addModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setAddModalVisible(false)}
-      >
-        <SafeAreaView style={styles.modal} edges={['top']}>
+      {/* ADD DISC SEARCH MODAL */}
+      <Modal visible={addModalVisible} animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
+        <SafeAreaView style={styles.modalSafe} edges={['top']}>
           <View style={styles.modalHeader}>
-            <Typo variant="h3">Search Disc Catalog</Typo>
-            <TouchableOpacity onPress={() => setAddModalVisible(false)}>
-              <Ionicons name="close" size={24} color={Colors.primaryBlack} />
+            <Typo variant="h2" style={styles.modalTitle}>Search Disc Database</Typo>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setAddModalVisible(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
             </TouchableOpacity>
           </View>
-          <View style={styles.modalSearch}>
+
+          <View style={{ padding: Spacing.lg }}>
             <View style={styles.searchBar}>
               <Ionicons name="search" size={18} color={Colors.gray400} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search catalog (Destroyer, Buzzz)..."
+                placeholder="Search Destroyer, Buzzz, Destroyer..."
                 placeholderTextColor={Colors.gray400}
                 value={discSearch}
                 onChangeText={setDiscSearch}
-                autoFocus
               />
-              {searchLoading && <DiscSpinner size={20} label="" />}
             </View>
           </View>
-          <FlatList
-            data={searchResults ?? []}
-            keyExtractor={(item) => `${item.brand}:${item.disc}`}
-            contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.searchResultRow}
-                onPress={() => { setAddModalVisible(false); }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Typo variant="bodyMedium">{item.disc}</Typo>
-                  <Typo variant="caption">{item.brand}</Typo>
+
+          {searchLoading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator color={Colors.primaryBlack} />
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults ?? []}
+              keyExtractor={(item, idx) => `${item.brand}-${item.disc}-${idx}`}
+              renderItem={({ item }) => (
+                <View style={styles.discSearchResultRow}>
+                  <View style={{ flex: 1 }}>
+                    <Typo style={{ fontWeight: 'bold' }}>{item.disc}</Typo>
+                    <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>{item.brand}</Typo>
+                  </View>
+                  <Button label="Add" variant="ghost" size="sm" onPress={() => setAddModalVisible(false)} />
                 </View>
-                <Ionicons name="add-circle" size={24} color={Colors.blue} />
-              </TouchableOpacity>
-            )}
-          />
+              )}
+              contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
+            />
+          )}
+
+          <View style={{ padding: 12, alignItems: 'center' }}>
+            <Typo style={{ color: Colors.gray400, fontSize: 10 }}>{TRYDISCS_ATTRIBUTION.text}</Typo>
+          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -289,144 +326,94 @@ export default function BagScreen() {
 }
 
 const FlightBox: React.FC<{ val: number; label: string }> = ({ val, label }) => (
-  <View style={styles.flightBoxItem}>
-    <Typo variant="bodyMedium" style={styles.flightValText}>{val}</Typo>
-    <Typo variant="caption" style={styles.flightLabelText}>{label}</Typo>
+  <View style={styles.flightBox}>
+    <Typo style={styles.flightNum}>{val}</Typo>
+    <Typo style={styles.flightLabel}>{label}</Typo>
   </View>
 );
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  title: { fontSize: 32, fontFamily: Typography.fontFamily.bold },
-  headerIcons: { flexDirection: 'row', gap: Spacing.sm },
-  iconCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Sub Tabs
   subTabsRow: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    marginBottom: Spacing.base,
+    gap: Spacing.md,
   },
-  subTabItem: {
-    paddingVertical: 12,
-    marginRight: Spacing.xl,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  subTabItemActive: { borderBottomColor: Colors.blue },
-  subTabText: { fontSize: Typography.size.base, fontFamily: Typography.fontFamily.medium, color: Colors.secondaryText },
-  subTabTextActive: { color: Colors.blue, fontFamily: Typography.fontFamily.bold },
+  subTabItem: { paddingVertical: Spacing.xs, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  subTabItemActive: { borderBottomColor: Colors.primaryBlack },
+  subTabText: { color: Colors.secondaryText, fontSize: 13, fontFamily: Typography.fontFamily.medium },
+  subTabTextActive: { color: Colors.primaryBlack, fontFamily: Typography.fontFamily.bold },
 
-  // Disc Card
+  scroll: { flex: 1 },
+  content: { padding: Spacing.lg, gap: Spacing.md },
+
+  addDiscBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 12,
+    gap: 8,
+    ...Shadows.sm,
+  },
+  addDiscText: { color: Colors.white, fontWeight: 'bold', fontSize: 13 },
+
   discCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.base,
-    marginBottom: Spacing.md,
+    padding: Spacing.md,
     ...Shadows.sm,
   },
-  discCardFeatured: {
-    borderColor: Colors.blue,
-    borderWidth: 2,
-  },
-  cardMainRow: {
+  discCardFeatured: { borderColor: Colors.blue, borderWidth: 1.5 },
+  cardMainRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },
+  discArtwork: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  discArtworkText: { fontSize: 8, fontFamily: Typography.fontFamily.extraBold },
+  discMetaInfo: { flex: 1, gap: 2 },
+  discNameTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 16 },
+  discBrandText: { color: Colors.secondaryText, fontSize: 11 },
+  flightGrid: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  flightBox: { backgroundColor: Colors.backgroundSoft, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2, alignItems: 'center' },
+  flightNum: { fontSize: 10, fontWeight: 'bold' },
+  flightLabel: { fontSize: 6, color: Colors.secondaryText, fontWeight: 'bold' },
+  rightStatsCol: { alignItems: 'flex-end', gap: 4 },
+  confidenceBadge: { backgroundColor: Colors.blueLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  confidenceText: { color: Colors.blue, fontSize: 8, fontWeight: 'bold' },
+  statGroup: { alignItems: 'flex-end' },
+  distValue: { fontSize: 12, fontWeight: 'bold' },
+  usageValue: { fontSize: 12, fontWeight: 'bold' },
+  statSubLabel: { fontSize: 7, color: Colors.secondaryText, fontWeight: 'bold' },
+
+  // Shop Grid
+  shopGrid: { gap: 12 },
+  shopCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
-  },
-  discArtwork: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-  },
-  discArtworkText: { fontSize: 10, fontFamily: Typography.fontFamily.bold, letterSpacing: 0.5 },
-  discMetaInfo: { flex: 1 },
-  discNameTitle: { fontSize: Typography.size.lg, fontFamily: Typography.fontFamily.bold },
-  discBrandText: { color: Colors.secondaryText, fontSize: Typography.size.xs, marginBottom: 8 },
-  flightGrid: { flexDirection: 'row', gap: 10 },
-  flightBoxItem: { alignItems: 'center' },
-  flightValText: { fontFamily: Typography.fontFamily.bold, fontSize: 13 },
-  flightLabelText: { fontSize: 8, color: Colors.secondaryText, fontFamily: Typography.fontFamily.semiBold },
-
-  rightStatsCol: { alignItems: 'flex-end', gap: 6 },
-  confidenceBadge: {
-    borderWidth: 1,
-    borderColor: Colors.blue,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    backgroundColor: Colors.blueLight,
-  },
-  confidenceText: { fontSize: 8, color: Colors.blue, fontFamily: Typography.fontFamily.bold },
-  statGroup: { alignItems: 'flex-end' },
-  distValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold },
-  usageValue: { fontSize: 13, fontFamily: Typography.fontFamily.bold },
-  statSubLabel: { fontSize: 8, color: Colors.secondaryText, fontFamily: Typography.fontFamily.semiBold },
-
-  // Bottom Hole Rec Card
-  holeRecCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.base,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.base,
+    padding: Spacing.md,
+    gap: Spacing.md,
     ...Shadows.sm,
   },
-  holeRecHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    marginBottom: Spacing.sm,
-  },
-  holeRecTitle: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.size.base },
-  holeRecSub: { color: Colors.secondaryText, fontSize: Typography.size.xs },
-  holeRecBody: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  discArtworkSmall: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  discArtworkTextSmall: { color: Colors.white, fontSize: 8, fontWeight: 'bold' },
-  holeRecDiscName: { fontFamily: Typography.fontFamily.bold, fontSize: Typography.size.base },
-  holeRecBrand: { color: Colors.secondaryText, fontSize: Typography.size.xs },
-  recConfidenceBadge: { backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 4 },
-  recConfidenceText: { fontSize: 9, fontFamily: Typography.fontFamily.bold, color: Colors.primaryBlack },
-  expectedVal: { fontFamily: Typography.fontFamily.bold, fontSize: 13 },
+  shopIconBadge: { width: 56, height: 56, borderRadius: BorderRadius.lg, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
+  shopCardBody: { flex: 1, gap: 2 },
+  shopTagBadge: { backgroundColor: Colors.primaryBlack, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' },
+  shopTagText: { color: Colors.white, fontSize: 8, fontWeight: 'bold' },
+  shopItemTitle: { fontWeight: 'bold', fontSize: 14, marginTop: 2 },
+  shopItemPrice: { color: Colors.blue, fontWeight: 'bold', fontSize: 13 },
 
-  attribution: { color: Colors.blue, textAlign: 'center', marginVertical: Spacing.base, textDecorationLine: 'underline' },
-
-  // Modal
-  modal: { flex: 1, backgroundColor: Colors.white },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalSearch: { padding: Spacing.lg },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.base, paddingVertical: 12, gap: Spacing.sm },
-  searchInput: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.size.base, color: Colors.primaryBlack, padding: 0 },
-  searchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalSafe: { flex: 1, backgroundColor: Colors.white },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modalTitle: { fontFamily: Typography.fontFamily.bold },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: 12, height: 42, gap: 8 },
+  searchInput: { flex: 1, fontSize: 13, color: Colors.primaryBlack },
+  discSearchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
 });

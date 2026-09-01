@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Linking,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,9 +23,37 @@ import { useAuthStore } from '../../store/authStore';
 import { useBags } from '../../hooks/useBag';
 import { getCourse } from '../../lib/discgolfapi';
 import { DiscSpinner } from '../../components/ui/DiscSpinner';
-import type { Course } from '../../types/course';
-
+import * as Haptics from 'expo-haptics';
+import type { Course, Hole } from '../../types/course';
+import type { GameType, Player } from '../../types/round';
 import { fetchCourseHoleGeometry } from '../../lib/osmHoleGeometry';
+
+const GAME_MODES_LIST: { id: GameType; title: string; desc: string; icon: string }[] = [
+  { id: 'stroke', title: 'Stroke Play', desc: 'Lowest total score wins', icon: 'golf-outline' },
+  { id: 'skins', title: 'Skins', desc: 'Win holes. Ties carry over', icon: 'flame-outline' },
+  { id: 'match', title: 'Match Play', desc: 'Win more holes than your opponent', icon: 'trophy-outline' },
+  { id: 'best_shot', title: 'Teams (Best Shot)', desc: 'Play together against another team', icon: 'people-outline' },
+  { id: 'disc_roulette', title: 'Disc Roulette', desc: 'Random disc assigned from My Bag per hole', icon: 'dice-outline' },
+  { id: 'birdie_battle', title: 'Birdie Battle', desc: 'Earn points for birdies, eagles & aces', icon: 'target-outline' },
+  { id: 'one_disc', title: 'One Disc Challenge', desc: 'Choose 1 disc for all 18 holes', icon: 'disc-outline' },
+];
+
+const MOCK_DAILY_LEADERBOARD = [
+  { name: 'Ricky Miller', score: '-5', totalStrokes: 49, timeAgo: 'Today 2:15 PM' },
+  { name: 'Jake Miller', score: '-3', totalStrokes: 51, timeAgo: 'Today 11:40 AM' },
+  { name: 'Sarah Jenkins', score: '-1', totalStrokes: 53, timeAgo: 'Today 9:20 AM' },
+];
+
+const MOCK_WEEKLY_LEADERBOARD = [
+  { name: 'Paul McBeth', score: '-9', totalStrokes: 45, timeAgo: '3 days ago' },
+  { name: 'Ricky Miller', score: '-7', totalStrokes: 47, timeAgo: '5 days ago' },
+  { name: 'Eagle Wysocki', score: '-6', totalStrokes: 48, timeAgo: '2 days ago' },
+];
+
+const INITIAL_PLAYERS: Player[] = [
+  { id: 'user-1', name: 'Thomas', handicap: 9.1, isUser: true },
+  { id: 'player-2', name: 'Jake', handicap: 3.0 },
+];
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +61,13 @@ export default function CourseDetailScreen() {
   const { user } = useAuthStore();
   const { data: bags } = useBags(user?.id ?? null);
   const [is3dTourOpen, setIs3dTourOpen] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<GameType>('stroke');
+  const [useHandicap, setUseHandicap] = useState(true);
+  const [players, setPlayers] = useState<Player[]>(INITIAL_PLAYERS);
+  const [isGameModalOpen, setIsGameModalOpen] = useState(false);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'weekly'>('daily');
+  const [newPlayerName, setNewPlayerName] = useState('');
   const tourMapRef = useRef<MapView>(null);
 
   const { data: course, isLoading } = useQuery<Course | null>({
@@ -40,6 +76,24 @@ export default function CourseDetailScreen() {
     enabled: !!id,
     staleTime: 30 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (is3dTourOpen && tourMapRef.current && course) {
+      setTimeout(() => {
+        if (tourMapRef.current && course) {
+          tourMapRef.current.animateCamera(
+            {
+              center: { latitude: course.latitude, longitude: course.longitude },
+              heading: 45,
+              pitch: 65,
+              zoom: 16.5,
+            },
+            { duration: 1200 }
+          );
+        }
+      }, 300);
+    }
+  }, [is3dTourOpen, course]);
 
   const { data: holesGeometry } = useQuery({
     queryKey: ['courseGeometry', id, course?.latitude, course?.longitude],
@@ -70,9 +124,18 @@ export default function CourseDetailScreen() {
   }
 
   async function handleStartRound() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const defaultBag = bags?.find((b) => b.isDefault) ?? bags?.[0];
     const holesToUse = holesGeometry || await fetchCourseHoleGeometry(course!.id, course!.latitude, course!.longitude, course!.holeCount);
-    const roundId = startRound(course!, undefined, holesToUse, defaultBag?.id);
+    const roundId = startRound(
+      course!,
+      undefined,
+      holesToUse,
+      defaultBag?.id,
+      selectedGame,
+      { useHandicap, carryTies: true },
+      players
+    );
     router.push({ pathname: '/round/[id]', params: { id: roundId } });
   }
 
@@ -98,7 +161,7 @@ export default function CourseDetailScreen() {
           </Typo>
           <View style={styles.badges}>
             <Badge label={`${course.holeCount} holes`} variant="blue" />
-            {holesGeometry?.some((h) => h.isOsmVerified) ? (
+            {holesGeometry?.some((h: Hole) => h.isOsmVerified) ? (
               <Badge label="OSM GPS Hole Geometry" variant="green" />
             ) : (
               <Badge label="Standard Layout" variant="gray" />
@@ -146,7 +209,7 @@ export default function CourseDetailScreen() {
           <InfoRow
             icon="compass-outline"
             label="OSM Mapping"
-            value={holesGeometry?.some((h) => h.isOsmVerified) ? "Tees, Baskets & Fairways Mapped" : "Standard Layout"}
+            value={holesGeometry?.some((h: Hole) => h.isOsmVerified) ? "Tees, Baskets & Fairways Mapped" : "Standard Layout"}
           />
           {course.distanceMiles !== undefined && (
             <InfoRow
@@ -155,6 +218,56 @@ export default function CourseDetailScreen() {
               value={`${course.distanceMiles < 10 ? course.distanceMiles.toFixed(1) : Math.round(course.distanceMiles)} miles away`}
             />
           )}
+        </View>
+
+        <Divider marginVertical={16} />
+
+        {/* Course Leaderboards Card */}
+        <View style={styles.leaderboardCard}>
+          <View style={styles.leaderboardHeaderRow}>
+            <Ionicons name="trophy" size={20} color="#F59E0B" />
+            <Typo variant="bodyMedium" style={{ fontWeight: 'bold', flex: 1, fontSize: 16 }}>Course Leaderboards</Typo>
+
+            <View style={styles.leaderboardToggleBg}>
+              <TouchableOpacity
+                style={[styles.leaderboardToggleBtn, leaderboardTab === 'daily' && styles.leaderboardToggleActive]}
+                onPress={() => setLeaderboardTab('daily')}
+              >
+                <Typo style={[styles.leaderboardToggleText, leaderboardTab === 'daily' && styles.leaderboardToggleTextActive]}>Daily</Typo>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.leaderboardToggleBtn, leaderboardTab === 'weekly' && styles.leaderboardToggleActive]}
+                onPress={() => setLeaderboardTab('weekly')}
+              >
+                <Typo style={[styles.leaderboardToggleText, leaderboardTab === 'weekly' && styles.leaderboardToggleTextActive]}>Weekly</Typo>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.challengeBanner}>
+            <Ionicons name="flame" size={14} color="#92400E" />
+            <Typo style={{ color: '#92400E', fontWeight: 'bold', fontSize: 11 }}>
+              {leaderboardTab === 'daily'
+                ? "Can you beat today's best round of -5?"
+                : "Can you beat this week's best round of -9?"}
+            </Typo>
+          </View>
+
+          <View style={styles.leaderboardRowsContainer}>
+            {(leaderboardTab === 'daily' ? MOCK_DAILY_LEADERBOARD : MOCK_WEEKLY_LEADERBOARD).map((entry, idx) => (
+              <View key={idx} style={styles.leaderboardItemRow}>
+                <Typo style={styles.leaderboardRankText}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</Typo>
+                <View style={{ flex: 1 }}>
+                  <Typo style={{ fontWeight: 'bold', fontSize: 14 }}>{entry.name}</Typo>
+                  <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>{entry.timeAgo}</Typo>
+                </View>
+                <View style={styles.leaderboardScorePill}>
+                  <Typo style={{ fontWeight: 'bold', color: Colors.blue, fontSize: 13 }}>{entry.score}</Typo>
+                  <Typo style={{ fontSize: 10, color: Colors.secondaryText }}>({entry.totalStrokes})</Typo>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
 
         <Divider marginVertical={16} />
@@ -180,10 +293,61 @@ export default function CourseDetailScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Sticky start round */}
+      {/* Sticky Start Round & Game Mode Configuration Card */}
       <View style={styles.stickyBottom}>
+        <View style={styles.gameSetupCard}>
+          <TouchableOpacity
+            style={styles.gameSelectorHeader}
+            activeOpacity={0.88}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsGameModalOpen(true);
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Typo variant="caption" style={styles.gameModeLabel}>GAME MODE (DEFAULTS TO NORMAL ROUND)</Typo>
+              <Typo variant="bodyMedium" style={styles.gameModeTitle}>
+                {selectedGame === 'stroke' ? 'Normal Round (Stroke Play)' : GAME_MODES_LIST.find((g) => g.id === selectedGame)?.title}
+              </Typo>
+              <Typo variant="caption" style={styles.gameModeDesc}>
+                {GAME_MODES_LIST.find((g) => g.id === selectedGame)?.desc ?? 'Lowest total score wins'}
+              </Typo>
+            </View>
+            <View style={styles.changeModeBadge}>
+              <Ionicons name="options-outline" size={14} color={Colors.white} />
+              <Typo style={styles.changeModeText}>Change</Typo>
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.setupRow}>
+            <TouchableOpacity
+              style={[styles.setupChip, useHandicap && styles.setupChipActive]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setUseHandicap(!useHandicap);
+              }}
+            >
+              <Ionicons name={useHandicap ? "checkmark-circle" : "ellipse-outline"} size={14} color={useHandicap ? Colors.white : Colors.primaryBlack} />
+              <Typo style={[styles.setupChipText, useHandicap && { color: Colors.white }]}>
+                Handicaps: {useHandicap ? 'ON' : 'OFF'}
+              </Typo>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.setupChip}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsPlayerModalOpen(true);
+              }}
+            >
+              <Ionicons name="people" size={14} color={Colors.primaryBlack} />
+              <Typo style={styles.setupChipText}>{players.length} Players</Typo>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <Button
-          label="Start Round Here"
+          label={`Start ${GAME_MODES_LIST.find((g) => g.id === selectedGame)?.title ?? 'Round'} Here`}
           variant="primary"
           size="lg"
           fullWidth
@@ -210,7 +374,7 @@ export default function CourseDetailScreen() {
               longitudeDelta: 0.008,
             }}
           >
-            {holesGeometry?.map((hole) => (
+            {holesGeometry?.map((hole: Hole) => (
               <React.Fragment key={hole.id}>
                 {hole.teeLat && hole.teeLng && (
                   <Marker coordinate={{ latitude: hole.teeLat, longitude: hole.teeLng }}>
@@ -260,6 +424,94 @@ export default function CourseDetailScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* GAME MODE SELECTION MODAL */}
+      <Modal visible={isGameModalOpen} animationType="slide" onRequestClose={() => setIsGameModalOpen(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          <View style={styles.modalHeader}>
+            <Typo variant="h2" style={{ fontWeight: 'bold' }}>Choose Game Mode</Typo>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setIsGameModalOpen(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 10 }}>
+            {GAME_MODES_LIST.map((g) => {
+              const isSelected = selectedGame === g.id;
+              return (
+                <TouchableOpacity
+                  key={g.id}
+                  style={[styles.modalGameRow, isSelected && styles.modalGameRowSelected]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedGame(g.id);
+                    setIsGameModalOpen(false);
+                  }}
+                >
+                  <Ionicons name={g.icon as any} size={24} color={isSelected ? Colors.white : Colors.primaryBlack} />
+                  <View style={{ flex: 1 }}>
+                    <Typo style={[styles.modalGameTitle, isSelected && { color: Colors.white }]}>{g.title}</Typo>
+                    <Typo style={[styles.modalGameDesc, isSelected && { color: 'rgba(255,255,255,0.8)' }]}>{g.desc}</Typo>
+                  </View>
+                  {isSelected && <Ionicons name="checkmark-circle" size={20} color={Colors.white} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* PLAYER MANAGEMENT MODAL */}
+      <Modal visible={isPlayerModalOpen} animationType="slide" onRequestClose={() => setIsPlayerModalOpen(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          <View style={styles.modalHeader}>
+            <Typo variant="h2" style={{ fontWeight: 'bold' }}>Round Players</Typo>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setIsPlayerModalOpen(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ padding: Spacing.lg, flex: 1, gap: 12 }}>
+            {players.map((p) => (
+              <View key={p.id} style={styles.playerRow}>
+                <Ionicons name="person-circle-outline" size={24} color={Colors.primaryBlack} />
+                <Typo style={{ flex: 1, fontWeight: 'bold' }}>{p.name}</Typo>
+                <View style={styles.handicapBadge}>
+                  <Typo style={{ fontSize: 10, fontWeight: 'bold' }}>ACED {p.handicap}</Typo>
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.addPlayerRow}>
+              <TextInput
+                style={styles.addPlayerInput}
+                placeholder="Add player name..."
+                placeholderTextColor={Colors.gray400}
+                value={newPlayerName}
+                onChangeText={setNewPlayerName}
+              />
+              <TouchableOpacity
+                style={styles.addPlayerBtn}
+                onPress={() => {
+                  if (!newPlayerName.trim()) return;
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setPlayers([
+                    ...players,
+                    { id: `p-${Date.now()}`, name: newPlayerName.trim(), handicap: 12.0 },
+                  ]);
+                  setNewPlayerName('');
+                }}
+              >
+                <Ionicons name="add" size={20} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ padding: Spacing.lg }}>
+            <Button label="Done" variant="primary" size="lg" fullWidth onPress={() => setIsPlayerModalOpen(false)} />
+          </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -439,4 +691,92 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.white,
   },
+
+  // Leaderboards Card
+  leaderboardCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: 12,
+    ...Shadows.sm,
+  },
+  leaderboardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  leaderboardToggleBg: { flexDirection: 'row', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, padding: 3 },
+  leaderboardToggleBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
+  leaderboardToggleActive: { backgroundColor: Colors.primaryBlack },
+  leaderboardToggleText: { fontSize: 11, color: Colors.secondaryText, fontWeight: 'bold' },
+  leaderboardToggleTextActive: { color: Colors.white },
+  challengeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.md, gap: 6 },
+  leaderboardRowsContainer: { gap: 8 },
+  leaderboardItemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  leaderboardRankText: { fontSize: 18 },
+  leaderboardScorePill: { alignItems: 'flex-end' },
+
+  // Game Setup Card in Sticky Bottom
+  gameSetupCard: {
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  gameSelectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  gameModeLabel: { fontSize: 9, color: Colors.secondaryText, letterSpacing: 0.5, fontWeight: 'bold' },
+  gameModeTitle: { fontWeight: 'bold', fontSize: 14, color: Colors.primaryBlack },
+  gameModeDesc: { fontSize: 11, color: Colors.secondaryText },
+  changeModeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryBlack,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  changeModeText: { color: Colors.white, fontSize: 11, fontWeight: 'bold' },
+  setupRow: { flexDirection: 'row', gap: 8 },
+  setupChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 6,
+  },
+  setupChipActive: { backgroundColor: Colors.primaryBlack, borderColor: Colors.primaryBlack },
+  setupChipText: { fontSize: 11, fontWeight: 'bold', color: Colors.primaryBlack },
+
+  // Modal styles
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 52,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
+  modalGameRow: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.xl, borderWidth: 1.5, borderColor: Colors.border, gap: 12 },
+  modalGameRowSelected: { backgroundColor: Colors.primaryBlack, borderColor: Colors.primaryBlack },
+  modalGameTitle: { fontWeight: 'bold', fontSize: 15 },
+  modalGameDesc: { fontSize: 11, color: Colors.secondaryText },
+  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  handicapBadge: { backgroundColor: Colors.backgroundSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.full },
+  addPlayerRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  addPlayerInput: { flex: 1, backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: 12, height: 42, fontSize: 13, color: Colors.primaryBlack },
+  addPlayerBtn: { width: 42, height: 42, borderRadius: BorderRadius.lg, backgroundColor: Colors.primaryBlack, alignItems: 'center', justifyContent: 'center' },
 });

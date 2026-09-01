@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ActiveRound, HoleScore } from '../types/round';
+import type { ActiveRound, HoleScore, GameType, Player, GameSettings, PlayerScore } from '../types/round';
 import type { Course, CourseLayout, Hole } from '../types/course';
 
 interface RoundState {
@@ -8,8 +8,17 @@ interface RoundState {
   layout: CourseLayout | null;
   holes: Hole[];
   // Actions
-  startRound: (course: Course, layout?: CourseLayout, holes?: Hole[], bagId?: string) => string;
+  startRound: (
+    course: Course,
+    layout?: CourseLayout,
+    holes?: Hole[],
+    bagId?: string,
+    gameType?: GameType,
+    gameSettings?: GameSettings,
+    players?: Player[]
+  ) => string;
   recordScore: (holeNumber: number, strokes: number, discUsed?: string, notes?: string) => void;
+  recordPlayerScore: (playerId: string, holeNumber: number, strokes: number) => void;
   nextHole: () => void;
   prevHole: () => void;
   goToHole: (index: number) => void;
@@ -32,33 +41,57 @@ function computeRelativeToPar(strokes: number, par: number) {
   return 'triple';
 }
 
+const DEFAULT_USER_PLAYER: Player = {
+  id: 'user-1',
+  name: 'Thomas',
+  handicap: 9.1,
+  isUser: true,
+};
+
 export const useRoundStore = create<RoundState>((set, get) => ({
   activeRound: null,
   course: null,
   layout: null,
   holes: [],
 
-  startRound: (course, layout, holes = [], bagId) => {
+  startRound: (course, layout, holes = [], bagId, gameType = 'stroke', gameSettings = {}, players) => {
     const id = generateId();
     const holeCount = layout?.holes?.length ?? course.holeCount;
 
-    // Build initial empty scores based on hole count
+    const roundPlayers: Player[] = players && players.length > 0 ? players : [DEFAULT_USER_PLAYER];
+
+    // Build initial empty scores based on hole count for primary user
     const scores: HoleScore[] = Array.from({ length: holeCount }, (_, i) => ({
       holeNumber: i + 1,
       par: holes[i]?.par ?? 3,
       strokes: 0,
     }));
 
+    // Build initial empty scores for all players
+    const playerScores: PlayerScore[] = roundPlayers.map((p) => ({
+      playerId: p.id,
+      playerName: p.name,
+      scores: Array.from({ length: holeCount }, (_, i) => ({
+        holeNumber: i + 1,
+        par: holes[i]?.par ?? 3,
+        strokes: 0,
+      })),
+    }));
+
     const activeRound: ActiveRound = {
       round: {
         id,
-        userId: '',  // will be set when saving to Supabase
+        userId: '',
         courseId: course.id,
         courseName: course.name,
         layoutId: layout?.id,
         layoutName: layout?.name,
         startedAt: new Date().toISOString(),
         scores,
+        players: roundPlayers,
+        playerScores,
+        gameType,
+        gameSettings,
       },
       currentHoleIndex: 0,
       bagId,
@@ -72,6 +105,8 @@ export const useRoundStore = create<RoundState>((set, get) => ({
     const { activeRound, holes } = get();
     if (!activeRound) return;
 
+    const userPlayerId = activeRound.round.players?.find((p) => p.isUser)?.id ?? activeRound.round.players?.[0]?.id ?? 'user-1';
+
     const updatedScores = activeRound.round.scores.map((s) => {
       if (s.holeNumber !== holeNumber) return s;
       const hole = holes.find((h) => h.holeNumber === holeNumber);
@@ -84,10 +119,56 @@ export const useRoundStore = create<RoundState>((set, get) => ({
       };
     });
 
+    const updatedPlayerScores = (activeRound.round.playerScores || []).map((ps) => {
+      if (ps.playerId !== userPlayerId) return ps;
+      return {
+        ...ps,
+        scores: ps.scores.map((s) => {
+          if (s.holeNumber !== holeNumber) return s;
+          const hole = holes.find((h) => h.holeNumber === holeNumber);
+          return {
+            ...s,
+            strokes,
+            discUsed,
+            notes,
+            relativeToPar: computeRelativeToPar(strokes, hole?.par ?? s.par) as HoleScore['relativeToPar'],
+          };
+        }),
+      };
+    });
+
     set({
       activeRound: {
         ...activeRound,
-        round: { ...activeRound.round, scores: updatedScores },
+        round: { ...activeRound.round, scores: updatedScores, playerScores: updatedPlayerScores },
+      },
+    });
+  },
+
+  recordPlayerScore: (playerId, holeNumber, strokes) => {
+    const { activeRound, holes } = get();
+    if (!activeRound || !activeRound.round.playerScores) return;
+
+    const updatedPlayerScores = activeRound.round.playerScores.map((ps) => {
+      if (ps.playerId !== playerId) return ps;
+      return {
+        ...ps,
+        scores: ps.scores.map((s) => {
+          if (s.holeNumber !== holeNumber) return s;
+          const hole = holes.find((h) => h.holeNumber === holeNumber);
+          return {
+            ...s,
+            strokes,
+            relativeToPar: computeRelativeToPar(strokes, hole?.par ?? s.par) as HoleScore['relativeToPar'],
+          };
+        }),
+      };
+    });
+
+    set({
+      activeRound: {
+        ...activeRound,
+        round: { ...activeRound.round, playerScores: updatedPlayerScores },
       },
     });
   },

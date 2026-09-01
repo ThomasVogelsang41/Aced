@@ -5,34 +5,35 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
-import { CourseListItem } from '../../components/CourseListItem';
-import { Colors, Spacing, Layout, BorderRadius, Typography } from '../../constants/theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { useLocation } from '../../hooks/useLocation';
 import { useNearestCourses } from '../../hooks/useNearestCourses';
 import { useRoundStore } from '../../store/roundStore';
-import { useAuthStore } from '../../store/authStore';
-import { useBagStore } from '../../store/bagStore';
-import type { Course } from '../../types/course';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
 import { DiscSpinner } from '../../components/ui/DiscSpinner';
 
 export default function PlayScreen() {
   const { activeRound } = useRoundStore();
-  const { user } = useAuthStore();
-  const { getActiveBag } = useBagStore();
   const { latitude, longitude } = useLocation();
   const { data: nearbyCourses, isLoading } = useNearestCourses(latitude, longitude, 50);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // If there's an active round, show the resume banner
+  const displayCourses = searchQuery.trim()
+    ? (nearbyCourses ?? []).filter((c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.city.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : nearbyCourses ?? [];
+
+  // Active round resume banner
   if (activeRound) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -43,7 +44,7 @@ export default function PlayScreen() {
               <Ionicons name="disc" size={24} color={Colors.blue} />
               <View style={{ flex: 1 }}>
                 <Typo variant="bodyMedium">{activeRound.round.courseName}</Typo>
-                <Typo variant="small">
+                <Typo variant="small" style={{ color: Colors.secondaryText }}>
                   Hole {activeRound.currentHoleIndex + 1} of {activeRound.round.scores.length}
                 </Typo>
               </View>
@@ -59,22 +60,13 @@ export default function PlayScreen() {
                   params: { id: activeRound.round.id },
                 })
               }
-              style={styles.resumeBtn}
+              style={{ marginTop: 12 }}
             />
           </View>
-          <Typo variant="small" style={styles.orText}>— or start a new round —</Typo>
-          <CourseList courses={nearbyCourses ?? []} isLoading={isLoading} />
         </View>
       </SafeAreaView>
     );
   }
-
-  const filtered = searchQuery.trim()
-    ? (nearbyCourses ?? []).filter((c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.city.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : nearbyCourses ?? [];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -84,17 +76,17 @@ export default function PlayScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Uniform Top Header */}
         <AnimatedFadeIn delay={0}>
-          <TabHeader subtitle="GPS & Smart Caddie" title="Play" />
+          <TabHeader subtitle="Select Course to Play" title="Play" />
         </AnimatedFadeIn>
 
+        {/* Search Bar */}
         <AnimatedFadeIn delay={100}>
           <View style={styles.searchBar}>
             <Ionicons name="search" size={18} color={Colors.gray400} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Filter courses..."
+              placeholder="Search course name or city..."
               placeholderTextColor={Colors.gray400}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -102,108 +94,114 @@ export default function PlayScreen() {
           </View>
         </AnimatedFadeIn>
 
-        <AnimatedFadeIn delay={180}>
-          {isLoading ? (
-            <DiscSpinner label="Locating nearby courses..." size={36} />
-          ) : (
-            <>
-              <Typo variant="label" style={styles.sectionLabel}>
-                {`${filtered.length} Courses`}
-              </Typo>
+        {/* Course List */}
+        <AnimatedFadeIn delay={200}>
+          <View style={styles.sectionHeader}>
+            <Typo variant="label" style={styles.sectionLabel}>NEARBY COURSES ({displayCourses.length})</Typo>
+          </View>
 
-              {filtered.map((course) => (
-                <CourseListItem
-                  key={course.id}
-                  course={course}
-                  onPress={() =>
-                    router.push({ pathname: '/course/[id]', params: { id: course.id } })
-                  }
-                />
+          {isLoading ? (
+            <View style={styles.loadingBox}>
+              <DiscSpinner label="Locating nearby courses..." size={36} />
+            </View>
+          ) : (
+            <View style={styles.courseGrid}>
+              {displayCourses.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.courseCard}
+                  activeOpacity={0.88}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: '/course/[id]', params: { id: c.id } });
+                  }}
+                >
+                  <View style={styles.courseCardTop}>
+                    <View style={styles.courseIconBadge}>
+                      <Ionicons name="flag" size={18} color={Colors.white} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Typo style={styles.courseName}>{c.name}</Typo>
+                      <Typo style={styles.courseCity}>{c.city}, {c.state}</Typo>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
+                  </View>
+
+                  <View style={styles.courseCardFooter}>
+                    <View style={styles.metaBadge}>
+                      <Ionicons name="disc-outline" size={12} color={Colors.secondaryText} />
+                      <Typo style={styles.metaBadgeText}>{c.holeCount} Holes</Typo>
+                    </View>
+                    {c.distanceMiles !== undefined && (
+                      <View style={styles.metaBadge}>
+                        <Ionicons name="navigate-outline" size={12} color={Colors.secondaryText} />
+                        <Typo style={styles.metaBadgeText}>
+                          {c.distanceMiles < 10 ? c.distanceMiles.toFixed(1) : Math.round(c.distanceMiles)} mi
+                        </Typo>
+                      </View>
+                    )}
+                    {c.rating && (
+                      <View style={styles.ratingBadge}>
+                        <Ionicons name="star" size={10} color="#F59E0B" />
+                        <Typo style={styles.ratingText}>{c.rating.toFixed(1)}</Typo>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
               ))}
-            </>
+            </View>
           )}
         </AnimatedFadeIn>
-
-        {!isLoading && filtered.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="map-outline" size={40} color={Colors.gray300} />
-            <Typo variant="body" style={styles.emptyText}>No courses found nearby</Typo>
-          </View>
-        )}
-        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const CourseList: React.FC<{ courses: Course[]; isLoading: boolean }> = ({
-  courses,
-  isLoading,
-}) => (
-  <ScrollView showsVerticalScrollIndicator={false}>
-    {isLoading && <ActivityIndicator color={Colors.blue} />}
-    {courses.slice(0, 8).map((c) => (
-      <CourseListItem
-        key={c.id}
-        course={c}
-        onPress={() =>
-          router.push({ pathname: '/course/[id]', params: { id: c.id } })
-        }
-      />
-    ))}
-  </ScrollView>
-);
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing.base,
-    paddingBottom: 32,
-  },
-  title: { marginBottom: 4 },
-  subtitle: { color: Colors.secondaryText, marginBottom: Spacing.xl },
+  content: { padding: Spacing.lg, gap: Spacing.lg },
+  title: { fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
   activeCard: {
     backgroundColor: Colors.backgroundSoft,
-    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.base,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
   },
-  activeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  resumeBtn: { marginTop: Spacing.sm },
-  orText: {
-    color: Colors.secondaryText,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
+  activeInfo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundSoft,
     borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    height: 46,
+    gap: 8,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.primaryBlack },
+  sectionHeader: { marginBottom: 8 },
+  sectionLabel: { color: Colors.secondaryText, letterSpacing: 0.8 },
+  loadingBox: { paddingVertical: 40, alignItems: 'center' },
+
+  courseGrid: { gap: 10 },
+  courseCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 12,
-    gap: Spacing.sm,
-    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    gap: 12,
+    ...Shadows.sm,
   },
-  searchInput: {
-    flex: 1,
-    fontFamily: Typography.fontFamily.regular,
-    fontSize: Typography.size.base,
-    color: Colors.primaryBlack,
-    padding: 0,
-  },
-  sectionLabel: { marginBottom: Spacing.md, color: Colors.secondaryText },
-  empty: { alignItems: 'center', paddingTop: 48, gap: Spacing.sm },
-  emptyText: { color: Colors.secondaryText },
+  courseCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  courseIconBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primaryBlack, alignItems: 'center', justifyContent: 'center' },
+  courseName: { fontFamily: Typography.fontFamily.bold, fontSize: 15 },
+  courseCity: { color: Colors.secondaryText, fontSize: 12 },
+  courseCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metaBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.md, gap: 4 },
+  metaBadgeText: { fontSize: 11, color: Colors.primaryBlack, fontWeight: 'bold' },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.md, gap: 4, marginLeft: 'auto' },
+  ratingText: { fontSize: 11, fontWeight: 'bold', color: '#92400E' },
 });

@@ -235,28 +235,25 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Create or Join Open Cards Card */}
+            {/* Create or Join Groups Card */}
             <TouchableOpacity
               style={styles.gridCard}
               activeOpacity={0.88}
               onPress={() => router.push('/(tabs)/openplay')}
             >
-              <Typo variant="caption" style={styles.cardHeaderTitle}>OPEN CARDS</Typo>
+              <Typo variant="caption" style={styles.cardHeaderTitle}>GROUPS</Typo>
               <View style={styles.openCardGridContent}>
                 <View style={styles.flameIconCircle}>
-                  <Ionicons name="flame" size={20} color={Colors.white} />
+                  <Ionicons name="people" size={20} color={Colors.white} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Typo variant="bodyMedium" style={{ fontWeight: 'bold', fontSize: 12, lineHeight: 16 }}>
-                    Create or Join Open Cards
-                  </Typo>
-                  <Typo variant="caption" style={{ color: Colors.secondaryText, marginTop: 2, fontSize: 10 }}>
-                    3 Open Cards near you
+                    Create or Join Groups
                   </Typo>
                 </View>
               </View>
               <View style={styles.bagLinkRow}>
-                <Typo variant="caption" style={styles.bagLinkText}>Open Play →</Typo>
+                <Typo variant="caption" style={styles.bagLinkText}>Groups</Typo>
                 <Ionicons name="chevron-forward" size={12} color={Colors.blue} />
               </View>
             </TouchableOpacity>
@@ -490,6 +487,7 @@ const styles = StyleSheet.create({
   bagLinkRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 4,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

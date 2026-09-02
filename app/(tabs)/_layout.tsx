@@ -24,6 +24,8 @@ const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label }) 
       />
       <Text
         numberOfLines={1}
+        adjustsFontSizeToFit={true}
+        minimumFontScale={0.8}
         allowFontScaling={false}
         style={[styles.tabLabel, { color }]}
       >
@@ -113,6 +115,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     width: '100%',
+    paddingHorizontal: 2,
   },
   tabLabel: {
     fontFamily: Typography.fontFamily.semiBold,

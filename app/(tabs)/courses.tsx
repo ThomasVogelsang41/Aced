@@ -34,17 +34,17 @@ export default function CoursesScreen() {
   const [showSearchHere, setShowSearchHere] = useState<boolean>(false);
   const [isSearchingArea, setIsSearchingArea] = useState<boolean>(false);
 
-  const currentLat = targetLat ?? latitude;
-  const currentLng = targetLng ?? longitude;
+  const displayLat = targetLat ?? latitude ?? 39.63;
+  const displayLng = targetLng ?? longitude ?? -84.22;
 
   const currentMapCenterRef = useRef({
-    latitude: currentLat ?? 37.7749,
-    longitude: currentLng ?? -122.4194,
+    latitude: displayLat,
+    longitude: displayLng,
     latitudeDelta: 0.08,
     longitudeDelta: 0.08,
   });
 
-  const { data: nearestCourses, isLoading: isCoursesLoading, refetch } = useNearestCourses(currentLat, currentLng);
+  const { data: nearestCourses, isLoading: isCoursesLoading, refetch } = useNearestCourses(displayLat, displayLng);
 
   // Safety Capping: Maximum 20 courses rendered at any time to prevent API charges or performance slowdowns
   const MAX_COURSES_LIMIT = 20;
@@ -80,8 +80,8 @@ export default function CoursesScreen() {
     currentMapCenterRef.current = region;
     setMapDelta(region.latitudeDelta);
 
-    const anchorLat = targetLat ?? currentLat;
-    const anchorLng = targetLng ?? currentLng;
+    const anchorLat = targetLat ?? displayLat;
+    const anchorLng = targetLng ?? displayLng;
 
     if (anchorLat !== null && anchorLng !== null) {
       const distMoved = Math.abs(region.latitude - anchorLat) + Math.abs(region.longitude - anchorLng);
@@ -136,21 +136,20 @@ export default function CoursesScreen() {
         {/* Interactive React Native MapView */}
         <AnimatedFadeIn delay={100}>
           <View style={styles.mapContainer}>
-            {currentLat !== null && currentLng !== null ? (
-              <MapView
-                style={styles.mapView}
-                provider={PROVIDER_DEFAULT}
-                initialRegion={{
-                  latitude: currentLat,
-                  longitude: currentLng,
-                  latitudeDelta: 0.08,
-                  longitudeDelta: 0.08,
-                }}
-                onRegionChangeComplete={handleRegionChangeComplete}
-                showsUserLocation={true}
-                showsMyLocationButton={true}
-                mapType="standard"
-              >
+            <MapView
+              style={styles.mapView}
+              provider={PROVIDER_DEFAULT}
+              initialRegion={{
+                latitude: displayLat,
+                longitude: displayLng,
+                latitudeDelta: 0.08,
+                longitudeDelta: 0.08,
+              }}
+              onRegionChangeComplete={handleRegionChangeComplete}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
+              mapType="standard"
+            >
                 {filtered.map((course) => (
                   <Marker
                     key={course.id}
@@ -192,11 +191,6 @@ export default function CoursesScreen() {
                   </Marker>
                 ))}
               </MapView>
-            ) : (
-              <View style={styles.mapLoadingPlaceholder}>
-                <DiscSpinner label="Acquiring GPS location..." size={36} />
-              </View>
-            )}
 
             {/* Bottom-Right Full Screen Map Expand Button */}
             <TouchableOpacity
@@ -216,16 +210,15 @@ export default function CoursesScreen() {
           onRequestClose={() => setIsFullScreenMapOpen(false)}
         >
           <View style={styles.fullScreenModalContainer}>
-            {currentLat !== null && currentLng !== null ? (
-              <MapView
-                style={styles.fullScreenMapView}
-                provider={PROVIDER_DEFAULT}
-                initialRegion={{
-                  latitude: currentLat,
-                  longitude: currentLng,
-                  latitudeDelta: 0.12,
-                  longitudeDelta: 0.12,
-                }}
+            <MapView
+              style={styles.fullScreenMapView}
+              provider={PROVIDER_DEFAULT}
+              initialRegion={{
+                latitude: displayLat,
+                longitude: displayLng,
+                latitudeDelta: 0.12,
+                longitudeDelta: 0.12,
+              }}
                 onRegionChangeComplete={handleRegionChangeComplete}
                 showsUserLocation={true}
                 showsMyLocationButton={true}
@@ -260,11 +253,6 @@ export default function CoursesScreen() {
                         <Typo variant="caption" style={styles.calloutSub}>
                           {course.holeCount} Holes{course.totalDistanceFt ? ` • ${course.totalDistanceFt.toLocaleString()} ft` : ''}
                         </Typo>
-                        {course.distanceMiles !== undefined && (
-                          <Typo variant="caption" style={styles.calloutDistance}>
-                            {course.distanceMiles.toFixed(1)} mi away
-                          </Typo>
-                        )}
                         <View style={styles.calloutBtn}>
                           <Typo style={styles.calloutBtnText}>View Course →</Typo>
                         </View>
@@ -273,7 +261,6 @@ export default function CoursesScreen() {
                   </Marker>
                 ))}
               </MapView>
-            ) : null}
 
             {/* Top-Center Floating Search Pill in Fullscreen */}
             <SafeAreaView style={styles.fullScreenTopOverlay} edges={['top']}>

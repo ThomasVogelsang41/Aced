@@ -673,7 +673,7 @@ export default function ActiveRoundScreen() {
             setIsScorecardModalOpen(true);
           }}
         >
-          <Ionicons name="list-outline" size={20} color={Colors.primaryBlack} />
+          <Ionicons name="clipboard-outline" size={20} color={Colors.primaryBlack} />
           <Typo style={styles.whiteScorecardBtnText}>Scorecard</Typo>
         </TouchableOpacity>
 
@@ -748,13 +748,6 @@ export default function ActiveRoundScreen() {
                 <Ionicons name="chevron-forward" size={16} color={currentHoleIndex === holeCount - 1 ? Colors.gray400 : Colors.primaryBlack} />
               </TouchableOpacity>
             </View>
-
-            {/* Live Golf Scorecard Strip (You + Group Members) */}
-            <GolfScorecardStrip
-              currentHoleIndex={currentHoleIndex}
-              scores={activeRound?.round?.scores ?? []}
-              onSelectHole={(idx) => goToHole(idx)}
-            />
 
             {/* Tactile Stroke Counter Buttons */}
             <View style={styles.strokeSection}>
@@ -1036,7 +1029,7 @@ const styles = StyleSheet.create({
   // Left & Right Controls
   overlayControlsRow: {
     position: 'absolute',
-    top: 340,
+    top: 420,
     left: 0,
     right: 0,
     flexDirection: 'row',

@@ -177,9 +177,11 @@ export default function CourseDetailScreen() {
 
         {/* Course Leaderboards Card */}
         <View style={styles.leaderboardCard}>
-          <View style={styles.leaderboardHeaderRow}>
-            <Ionicons name="trophy" size={20} color="#F59E0B" />
-            <Typo variant="bodyMedium" style={{ fontWeight: 'bold', flex: 1, fontSize: 16 }}>Course Leaderboards</Typo>
+          <View style={styles.leaderboardHeaderStack}>
+            <View style={styles.leaderboardTitleRow}>
+              <Ionicons name="trophy" size={20} color="#F59E0B" />
+              <Typo variant="h2" style={styles.leaderboardTitleText}>Course Leaderboard</Typo>
+            </View>
 
             <View style={styles.leaderboardToggleBg}>
               <TouchableOpacity
@@ -667,16 +669,18 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg + 4,
+    padding: Spacing.lg,
     gap: 16,
-    marginVertical: 4,
+    marginVertical: 8,
     ...Shadows.md,
   },
-  leaderboardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  leaderboardToggleBg: { flexDirection: 'row', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, padding: 4 },
-  leaderboardToggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.full },
+  leaderboardHeaderStack: { gap: 12 },
+  leaderboardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  leaderboardTitleText: { fontWeight: 'bold', fontSize: 18, color: Colors.primaryBlack },
+  leaderboardToggleBg: { flexDirection: 'row', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, padding: 4, alignSelf: 'flex-start' },
+  leaderboardToggleBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: BorderRadius.full },
   leaderboardToggleActive: { backgroundColor: Colors.primaryBlack },
-  leaderboardToggleText: { fontSize: 11, color: Colors.secondaryText, fontWeight: 'bold' },
+  leaderboardToggleText: { fontSize: 12, color: Colors.secondaryText, fontWeight: 'bold' },
   leaderboardToggleTextActive: { color: Colors.white },
   challengeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 12, paddingVertical: 10, borderRadius: BorderRadius.lg, gap: 8 },
   leaderboardRowsContainer: { gap: 12 },

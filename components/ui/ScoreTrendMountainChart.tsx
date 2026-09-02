@@ -36,12 +36,13 @@ export const ScoreTrendMountainChart: React.FC<ScoreTrendMountainChartProps> = (
             ],
           }}
           width={SCREEN_WIDTH - 64}
-          height={140}
+          height={175}
           bezier
           withDots={true}
           withInnerLines={true}
           withOuterLines={false}
           withVerticalLines={false}
+          xLabelsOffset={-2}
           chartConfig={{
             backgroundColor: Colors.white,
             backgroundGradientFrom: Colors.white,
@@ -79,6 +80,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.md,
+    paddingBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     gap: 8,
@@ -116,9 +118,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     marginTop: 4,
+    paddingBottom: 8,
   },
   chartStyle: {
     marginVertical: 4,
     borderRadius: BorderRadius.lg,
+    paddingRight: 16,
   },
 });

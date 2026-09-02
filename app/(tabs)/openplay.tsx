@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,28 +6,103 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Image,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Typo } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
+import { useLocation } from '../../hooks/useLocation';
+import { useNearestCourses } from '../../hooks/useNearestCourses';
+import type { Course } from '../../types/course';
+
+// ─────────────────────────────────────────────────────────
+//  Types & Constants
+// ─────────────────────────────────────────────────────────
+
+export type GameType =
+  | 'skins'
+  | 'match'
+  | 'stroke'
+  | 'doubles'
+  | 'ace_race'
+  | 'ctp'
+  | 'points';
+
+interface GameFormatConfig {
+  id: GameType;
+  label: string;
+  description: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  iconFocused: React.ComponentProps<typeof Ionicons>['name'];
+}
+
+export const GAME_FORMATS: GameFormatConfig[] = [
+  {
+    id: 'skins',
+    label: 'Skins',
+    description: 'Win holes, carry skins.',
+    icon: 'flame-outline',
+    iconFocused: 'flame',
+  },
+  {
+    id: 'match',
+    label: 'Match Play',
+    description: 'Head-to-head hole by hole.',
+    icon: 'trophy-outline',
+    iconFocused: 'trophy',
+  },
+  {
+    id: 'stroke',
+    label: 'Stroke Play',
+    description: 'Lowest total strokes wins.',
+    icon: 'disc-outline',
+    iconFocused: 'disc',
+  },
+  {
+    id: 'doubles',
+    label: 'Best Disc Doubles',
+    description: 'Teams of 2, best drive.',
+    icon: 'people-outline',
+    iconFocused: 'people',
+  },
+  {
+    id: 'ace_race',
+    label: 'Ace Race',
+    description: 'First ace on each hole wins.',
+    icon: 'star-outline',
+    iconFocused: 'star',
+  },
+  {
+    id: 'ctp',
+    label: 'CTP (Closest to Pin)',
+    description: 'Closest approach on select holes.',
+    icon: 'location-outline',
+    iconFocused: 'location',
+  },
+  {
+    id: 'points',
+    label: 'Points Game',
+    description: 'Earn points for eagles, birdies, pars.',
+    icon: 'ribbon-outline',
+    iconFocused: 'ribbon',
+  },
+];
+
+const FORMAT_MAP = Object.fromEntries(GAME_FORMATS.map((f) => [f.id, f]));
 
 export interface OpenCardItem {
   id: string;
   courseName: string;
   timeText: string;
-  gameType: 'skins' | 'match' | 'stroke' | 'doubles';
-  formatLabel: string;
+  gameType: GameType;
   hostName: string;
   players: string[];
   maxPlayers: number;
-  entryFee?: string;
   joined: boolean;
 }
 
@@ -37,11 +112,9 @@ const INITIAL_OPEN_CARDS: OpenCardItem[] = [
     courseName: 'Echo Valley DGC',
     timeText: 'Today • 5:30 PM',
     gameType: 'skins',
-    formatLabel: 'SKINS GAME',
     hostName: 'Player',
     players: ['P1', 'P2'],
     maxPlayers: 4,
-    entryFee: '$5 / skin',
     joined: false,
   },
   {
@@ -49,7 +122,6 @@ const INITIAL_OPEN_CARDS: OpenCardItem[] = [
     courseName: 'Echo Valley DGC',
     timeText: 'Today • 2:30 PM',
     gameType: 'stroke',
-    formatLabel: 'CASUAL STROKE',
     hostName: 'Player',
     players: ['P1', 'P2'],
     maxPlayers: 4,
@@ -57,10 +129,9 @@ const INITIAL_OPEN_CARDS: OpenCardItem[] = [
   },
   {
     id: 'card-3',
-    courseName: 'Belmont Park',
+    courseName: 'Belmont Park DGC',
     timeText: 'Today • 4:00 PM',
     gameType: 'match',
-    formatLabel: 'MATCH PLAY',
     hostName: 'Player',
     players: ['P1'],
     maxPlayers: 4,
@@ -68,64 +139,105 @@ const INITIAL_OPEN_CARDS: OpenCardItem[] = [
   },
   {
     id: 'card-4',
-    courseName: 'Caesar Ford Park',
+    courseName: 'Caesar Ford Park DGC',
     timeText: 'Today • 5:30 PM',
     gameType: 'doubles',
-    formatLabel: 'BEST DISC DOUBLES',
     hostName: 'Player',
     players: ['P1', 'P2', 'P3'],
     maxPlayers: 4,
     joined: false,
   },
+  {
+    id: 'card-5',
+    courseName: 'Maple Hill DGC',
+    timeText: 'Tomorrow • 10:00 AM',
+    gameType: 'ace_race',
+    hostName: 'Player',
+    players: ['P1'],
+    maxPlayers: 6,
+    joined: false,
+  },
 ];
 
-export default function OpenPlayScreen() {
+type FilterKey = 'all' | GameType;
+
+// ─────────────────────────────────────────────────────────
+//  Screen
+// ─────────────────────────────────────────────────────────
+
+export default function GroupsScreen() {
+  const { latitude, longitude } = useLocation();
+  const { data: nearbyCourses } = useNearestCourses(latitude, longitude, 80);
+
   const [cardsList, setCardsList] = useState<OpenCardItem[]>(INITIAL_OPEN_CARDS);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'skins' | 'match' | 'stroke'>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // New Card Form State
-  const [newCourseName, setNewCourseName] = useState('Echo Valley DGC');
+  // ── Create Form State ──
+  const [courseSearch, setCourseSearch] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [showCoursePicker, setShowCoursePicker] = useState(false);
   const [newTimeText, setNewTimeText] = useState('Today • 6:00 PM');
-  const [newFormat, setNewFormat] = useState<'skins' | 'match' | 'stroke'>('skins');
+  const [newFormat, setNewFormat] = useState<GameType>('skins');
   const [newMaxPlayers, setNewMaxPlayers] = useState(4);
 
+  // ── Course search results ──
+  const courseResults = useMemo(() => {
+    const all = nearbyCourses ?? [];
+    if (!courseSearch.trim()) return all.slice(0, 15);
+    return all
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
+          c.city.toLowerCase().includes(courseSearch.toLowerCase()),
+      )
+      .slice(0, 15);
+  }, [nearbyCourses, courseSearch]);
+
+  // ── Filter tabs ──
+  const filterTabs: { key: FilterKey; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+    { key: 'all', label: 'All', icon: 'grid-outline' },
+    { key: 'skins', label: 'Skins', icon: 'flame-outline' },
+    { key: 'match', label: 'Match', icon: 'trophy-outline' },
+    { key: 'stroke', label: 'Stroke', icon: 'disc-outline' },
+    { key: 'doubles', label: 'Doubles', icon: 'people-outline' },
+    { key: 'ace_race', label: 'Ace Race', icon: 'star-outline' },
+    { key: 'ctp', label: 'CTP', icon: 'location-outline' },
+    { key: 'points', label: 'Points', icon: 'ribbon-outline' },
+  ];
+
+  const filteredCards = cardsList.filter((card) =>
+    activeFilter === 'all' ? true : card.gameType === activeFilter,
+  );
+
+  // ── Handlers ──
   const handleJoinCard = (cardId: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCardsList((prev) =>
       prev.map((card) => {
-        if (card.id === cardId) {
-          const isAlreadyJoined = card.joined;
-          const updatedPlayers = isAlreadyJoined
+        if (card.id !== cardId) return card;
+        const isJoined = card.joined;
+        return {
+          ...card,
+          joined: !isJoined,
+          players: isJoined
             ? card.players.filter((p) => p !== 'You')
-            : [...card.players, 'You'];
-          return {
-            ...card,
-            joined: !isAlreadyJoined,
-            players: updatedPlayers,
-          };
-        }
-        return card;
-      })
+            : [...card.players, 'You'],
+        };
+      }),
     );
   };
 
   const handleCreateCard = () => {
-    if (!newCourseName.trim()) return;
+    const courseName = selectedCourse?.name ?? courseSearch.trim();
+    if (!courseName) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    const formatLabelMap = {
-      skins: '🔥 SKINS GAME',
-      match: '🏆 MATCH PLAY',
-      stroke: '🌿 STROKE PLAY',
-    };
 
     const newCard: OpenCardItem = {
       id: `card-${Date.now()}`,
-      courseName: newCourseName,
+      courseName,
       timeText: newTimeText,
       gameType: newFormat,
-      formatLabel: formatLabelMap[newFormat],
       hostName: 'You',
       players: ['You'],
       maxPlayers: newMaxPlayers,
@@ -133,24 +245,27 @@ export default function OpenPlayScreen() {
     };
 
     setCardsList((prev) => [newCard, ...prev]);
+    // Reset form
+    setCourseSearch('');
+    setSelectedCourse(null);
+    setNewTimeText('Today • 6:00 PM');
+    setNewFormat('skins');
+    setNewMaxPlayers(4);
     setIsCreateModalOpen(false);
   };
 
-  const filteredCards = cardsList.filter((card) => {
-    if (activeFilter === 'skins') return card.gameType === 'skins';
-    if (activeFilter === 'match') return card.gameType === 'match';
-    if (activeFilter === 'stroke') return card.gameType === 'stroke';
-    return true;
-  });
+  // ─────────────────────────────────────────────────────────
+  //  Render
+  // ─────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AnimatedFadeIn delay={0} style={{ paddingHorizontal: Spacing.lg }}>
-        <TabHeader subtitle="Pickup Cards & Group Games" title="Open Play" />
+        <TabHeader subtitle="Pickup Cards & Group Games" title="Groups" />
       </AnimatedFadeIn>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Create Open Card Banner */}
+        {/* Create Group Banner */}
         <AnimatedFadeIn delay={50}>
           <TouchableOpacity
             style={styles.createCardBanner}
@@ -161,15 +276,15 @@ export default function OpenPlayScreen() {
             }}
           >
             <View style={styles.createBannerLeft}>
-              <View style={styles.flameIconBadge}>
-                <Ionicons name="flame" size={24} color={Colors.primaryBlack} />
+              <View style={styles.createIconBadge}>
+                <Ionicons name="people" size={22} color={Colors.primaryBlack} />
               </View>
-              <View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
                 <Typo variant="bodyMedium" style={{ fontWeight: 'bold', color: Colors.white }}>
-                  Create an Open Card
+                  Create a Group Card
                 </Typo>
                 <Typo variant="caption" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                  Host a pickup round or Skins game for local disc golfers
+                  Host a pickup round or game for local disc golfers
                 </Typo>
               </View>
             </View>
@@ -179,41 +294,33 @@ export default function OpenPlayScreen() {
 
         {/* Filter Pills */}
         <AnimatedFadeIn delay={100}>
-          <View style={styles.filterRow}>
-            {(['all', 'skins', 'match', 'stroke'] as const).map((filterKey) => {
-              const isActive = activeFilter === filterKey;
-              const labels = {
-                all: 'All Cards',
-                skins: 'Skins',
-                match: 'Match Play',
-                stroke: 'Stroke Play',
-              };
-              const icons: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-                all: 'grid-outline',
-                skins: 'flame-outline',
-                match: 'trophy-outline',
-                stroke: 'disc-outline',
-              };
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {filterTabs.map(({ key, label, icon }) => {
+              const isActive = activeFilter === key;
               return (
                 <TouchableOpacity
-                  key={filterKey}
+                  key={key}
                   style={[styles.filterChip, isActive && styles.filterChipActive]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setActiveFilter(filterKey);
+                    setActiveFilter(key);
                   }}
                 >
-                  <Ionicons name={icons[filterKey]} size={13} color={isActive ? Colors.white : Colors.primaryBlack} />
+                  <Ionicons name={icon} size={13} color={isActive ? Colors.white : Colors.primaryBlack} />
                   <Typo style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                    {labels[filterKey]}
+                    {label}
                   </Typo>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
         </AnimatedFadeIn>
 
-        {/* Open Cards Section Title */}
+        {/* Section Title */}
         <AnimatedFadeIn delay={150}>
           <View style={styles.sectionHeader}>
             <Typo variant="label" style={styles.sectionTitle}>
@@ -224,17 +331,22 @@ export default function OpenPlayScreen() {
 
         {/* Open Cards List */}
         {filteredCards.map((card, index) => {
+          const fmt = FORMAT_MAP[card.gameType];
           const spotsRemaining = card.maxPlayers - card.players.length;
-          const gameIcon = card.gameType === 'skins' ? 'flame' : card.gameType === 'match' ? 'trophy' : 'disc';
+          const isSkins = card.gameType === 'skins';
           return (
             <AnimatedFadeIn key={card.id} delay={200 + index * 50}>
-              <View style={[styles.openCardItem, card.gameType === 'skins' && styles.skinsBorderCard]}>
+              <View style={[styles.openCardItem, isSkins && styles.skinsBorderCard]}>
                 {/* Format Tag & Time */}
                 <View style={styles.cardTopRow}>
-                  <View style={[styles.formatTagBadge, card.gameType === 'skins' && styles.skinsFormatBadge]}>
-                    <Ionicons name={gameIcon} size={12} color={card.gameType === 'skins' ? '#D97706' : Colors.primaryBlack} />
-                    <Typo style={[styles.formatTagText, card.gameType === 'skins' && styles.skinsFormatText]}>
-                      {card.formatLabel}
+                  <View style={[styles.formatTagBadge, isSkins && styles.skinsFormatBadge]}>
+                    <Ionicons
+                      name={fmt.iconFocused}
+                      size={12}
+                      color={isSkins ? '#D97706' : Colors.primaryBlack}
+                    />
+                    <Typo style={[styles.formatTagText, isSkins && styles.skinsFormatText]}>
+                      {fmt.label.toUpperCase()}
                     </Typo>
                   </View>
                   <Typo variant="caption" style={styles.cardTimeText}>
@@ -256,7 +368,7 @@ export default function OpenPlayScreen() {
                       </View>
                     ))}
                   </View>
-                  <View style={{ flex: 1, marginLeft: 8 }}>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
                     <Typo variant="bodyMedium" style={{ fontWeight: 'bold', fontSize: 13 }}>
                       {card.players.length} / {card.maxPlayers} Players
                     </Typo>
@@ -264,10 +376,9 @@ export default function OpenPlayScreen() {
                       {spotsRemaining > 0 ? `${spotsRemaining} spots remaining` : 'Card Full!'}
                     </Typo>
                   </View>
-
                 </View>
 
-                {/* Join Card Button */}
+                {/* Join Button */}
                 <TouchableOpacity
                   style={[styles.joinCardBtn, card.joined && styles.joinCardBtnJoined]}
                   activeOpacity={0.88}
@@ -279,7 +390,7 @@ export default function OpenPlayScreen() {
                     color={card.joined ? Colors.primaryBlack : Colors.white}
                   />
                   <Typo style={[styles.joinCardBtnText, card.joined && styles.joinCardBtnTextJoined]}>
-                    {card.joined ? 'JOINED CARD' : 'JOIN CARD'}
+                    {card.joined ? 'JOINED' : 'JOIN CARD'}
                   </Typo>
                 </TouchableOpacity>
               </View>
@@ -290,27 +401,102 @@ export default function OpenPlayScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* CREATE OPEN CARD MODAL */}
+      {/* ─── CREATE GROUP MODAL ─── */}
       <Modal visible={isCreateModalOpen} animationType="slide" onRequestClose={() => setIsCreateModalOpen(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          {/* Modal Header */}
           <View style={styles.modalHeader}>
-            <Typo variant="h2" style={{ fontWeight: 'bold' }}>Create Open Card</Typo>
+            <Typo variant="h2" style={{ fontWeight: 'bold' }}>Create Group Card</Typo>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setIsCreateModalOpen(false)}>
               <Ionicons name="close" size={22} color={Colors.primaryBlack} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 16 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+
+            {/* ── Course Search ── */}
             <View style={styles.formGroup}>
-              <Typo variant="label" style={styles.formLabel}>COURSE NAME</Typo>
-              <TextInput
-                style={styles.formInput}
-                value={newCourseName}
-                onChangeText={setNewCourseName}
-                placeholder="e.g. Echo Valley DGC"
-              />
+              <Typo variant="label" style={styles.formLabel}>COURSE</Typo>
+
+              {selectedCourse ? (
+                <TouchableOpacity
+                  style={styles.selectedCourseRow}
+                  onPress={() => { setSelectedCourse(null); setCourseSearch(''); }}
+                >
+                  <View style={styles.selectedCourseInfo}>
+                    <Ionicons name="location" size={16} color={Colors.blue} />
+                    <View style={{ flex: 1 }}>
+                      <Typo style={{ fontWeight: 'bold', fontSize: 14 }}>{selectedCourse.name}</Typo>
+                      <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>
+                        {selectedCourse.city}{selectedCourse.state ? `, ${selectedCourse.state}` : ''} • {selectedCourse.holeCount} Holes
+                      </Typo>
+                    </View>
+                  </View>
+                  <Ionicons name="close-circle" size={20} color={Colors.gray400} />
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={styles.courseSearchBar}>
+                    <Ionicons name="search" size={16} color={Colors.gray400} />
+                    <TextInput
+                      style={styles.courseSearchInput}
+                      placeholder="Search disc golf courses..."
+                      placeholderTextColor={Colors.gray400}
+                      value={courseSearch}
+                      onChangeText={(t) => { setCourseSearch(t); setShowCoursePicker(true); }}
+                      onFocus={() => setShowCoursePicker(true)}
+                    />
+                    {courseSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setCourseSearch('')}>
+                        <Ionicons name="close-circle" size={16} color={Colors.gray400} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Course results */}
+                  {showCoursePicker && courseResults.length > 0 && (
+                    <View style={styles.courseDropdown}>
+                      {courseResults.map((course) => (
+                        <TouchableOpacity
+                          key={course.id}
+                          style={styles.courseDropdownRow}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedCourse(course);
+                            setCourseSearch('');
+                            setShowCoursePicker(false);
+                          }}
+                        >
+                          <View style={styles.courseDropdownPin}>
+                            <Ionicons name="disc" size={13} color={Colors.white} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Typo style={{ fontWeight: 'bold', fontSize: 13 }} numberOfLines={1}>
+                              {course.name}
+                            </Typo>
+                            <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>
+                              {course.city}{course.state ? `, ${course.state}` : ''} • {course.holeCount} Holes
+                              {course.distanceMiles !== undefined ? ` • ${course.distanceMiles.toFixed(1)} mi` : ''}
+                            </Typo>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Empty state */}
+                  {showCoursePicker && courseSearch.length > 0 && courseResults.length === 0 && (
+                    <View style={styles.courseDropdown}>
+                      <Typo style={{ color: Colors.secondaryText, textAlign: 'center', padding: 16 }}>
+                        No courses found. Try a different name or city.
+                      </Typo>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
 
+            {/* ── Tee Time ── */}
             <View style={styles.formGroup}>
               <Typo variant="label" style={styles.formLabel}>TEE TIME</Typo>
               <TextInput
@@ -321,20 +507,31 @@ export default function OpenPlayScreen() {
               />
             </View>
 
+            {/* ── Game Format ── */}
             <View style={styles.formGroup}>
               <Typo variant="label" style={styles.formLabel}>GAME FORMAT</Typo>
-              <View style={styles.formatSelectRow}>
-                {(['skins', 'match', 'stroke'] as const).map((fmt) => {
-                  const isSel = newFormat === fmt;
-                  const labels = { skins: '🔥 Skins', match: '🏆 Match', stroke: '🌿 Stroke' };
+              <View style={styles.formatsGrid}>
+                {GAME_FORMATS.map((fmt) => {
+                  const isSel = newFormat === fmt.id;
                   return (
                     <TouchableOpacity
-                      key={fmt}
-                      style={[styles.formatSelectBtn, isSel && styles.formatSelectBtnSel]}
-                      onPress={() => setNewFormat(fmt)}
+                      key={fmt.id}
+                      style={[styles.formatOption, isSel && styles.formatOptionSel]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setNewFormat(fmt.id);
+                      }}
                     >
-                      <Typo style={[styles.formatSelectText, isSel && styles.formatSelectTextSel]}>
-                        {labels[fmt]}
+                      <Ionicons
+                        name={isSel ? fmt.iconFocused : fmt.icon}
+                        size={20}
+                        color={isSel ? Colors.white : Colors.primaryBlack}
+                      />
+                      <Typo style={[styles.formatOptionLabel, isSel && styles.formatOptionLabelSel]}>
+                        {fmt.label}
+                      </Typo>
+                      <Typo style={[styles.formatOptionDesc, isSel && styles.formatOptionDescSel]}>
+                        {fmt.description}
                       </Typo>
                     </TouchableOpacity>
                   );
@@ -342,13 +539,31 @@ export default function OpenPlayScreen() {
               </View>
             </View>
 
+            {/* ── Max Players ── */}
+            <View style={styles.formGroup}>
+              <Typo variant="label" style={styles.formLabel}>MAX PLAYERS</Typo>
+              <View style={styles.playerCountRow}>
+                {[2, 3, 4, 6, 8].map((n) => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.playerCountBtn, newMaxPlayers === n && styles.playerCountBtnSel]}
+                    onPress={() => setNewMaxPlayers(n)}
+                  >
+                    <Typo style={[styles.playerCountText, newMaxPlayers === n && styles.playerCountTextSel]}>
+                      {n}
+                    </Typo>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             <Button
-              label="Host & Publish Open Card"
+              label="Host & Publish Group Card"
               variant="primary"
               size="lg"
               fullWidth
               onPress={handleCreateCard}
-              style={{ marginTop: 12 }}
+              style={{ marginTop: 8 }}
             />
           </ScrollView>
         </SafeAreaView>
@@ -356,6 +571,10 @@ export default function OpenPlayScreen() {
     </SafeAreaView>
   );
 }
+
+// ─────────────────────────────────────────────────────────
+//  Styles
+// ─────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.backgroundSoft },
@@ -374,7 +593,7 @@ const styles = StyleSheet.create({
     ...Shadows.md,
   },
   createBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
-  flameIconBadge: {
+  createIconBadge: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -383,12 +602,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  filterRow: { flexDirection: 'row', gap: 8, marginVertical: 4 },
+  // Filter Pills
+  filterRow: { gap: 8, paddingBottom: 4 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.white,
     borderWidth: 1,
@@ -399,9 +619,10 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: 12, fontWeight: 'bold', color: Colors.primaryBlack },
   filterChipTextActive: { color: Colors.white },
 
-  sectionHeader: { marginTop: 8 },
+  sectionHeader: { marginTop: 4 },
   sectionTitle: { color: Colors.secondaryText, letterSpacing: 0.8, fontSize: 11, fontWeight: 'bold' },
 
+  // Open Card Item
   openCardItem: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
@@ -412,6 +633,7 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   skinsBorderCard: { borderColor: '#F59E0B', borderWidth: 1.5 },
+
   cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   formatTagBadge: {
     flexDirection: 'row',
@@ -428,7 +650,7 @@ const styles = StyleSheet.create({
   cardTimeText: { color: Colors.secondaryText, fontSize: 12, fontWeight: '600' },
   cardCourseTitle: { fontWeight: 'bold', fontSize: 18, color: Colors.primaryBlack },
 
-  playersRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
+  playersRow: { flexDirection: 'row', alignItems: 'center' },
   avatarsStack: { flexDirection: 'row', alignItems: 'center' },
   avatarBubble: {
     width: 32,
@@ -440,9 +662,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.white,
   },
-  avatarInitial: { color: Colors.white, fontWeight: 'bold', fontSize: 13 },
-  entryFeeBadge: { backgroundColor: Colors.backgroundSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: BorderRadius.md },
-  entryFeeText: { fontSize: 10, fontWeight: 'bold', color: Colors.primaryBlack },
 
   joinCardBtn: {
     height: 48,
@@ -452,12 +671,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 4,
   },
   joinCardBtnJoined: { backgroundColor: Colors.backgroundSoft, borderWidth: 1, borderColor: Colors.border },
   joinCardBtnText: { color: Colors.white, fontWeight: 'bold', fontSize: 14 },
   joinCardBtnTextJoined: { color: Colors.primaryBlack },
 
+  // Modal
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,23 +687,152 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
-  formGroup: { gap: 6 },
-  formLabel: { fontSize: 11, fontWeight: 'bold', color: Colors.secondaryText, letterSpacing: 0.8 },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    padding: Spacing.lg,
+    gap: 20,
+    paddingBottom: 40,
+  },
+
+  // Form
+  formGroup: { gap: 8 },
+  formLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: Colors.secondaryText,
+    letterSpacing: 0.8,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
   formInput: {
     backgroundColor: Colors.backgroundSoft,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 14,
     fontWeight: 'bold',
     color: Colors.primaryBlack,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  formatSelectRow: { flexDirection: 'row', gap: 8 },
-  formatSelectBtn: { flex: 1, paddingVertical: 12, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  formatSelectBtnSel: { backgroundColor: Colors.primaryBlack, borderColor: Colors.primaryBlack },
-  formatSelectText: { fontWeight: 'bold', fontSize: 12, color: Colors.primaryBlack },
-  formatSelectTextSel: { color: Colors.white },
+
+  // Course Search
+  courseSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+  },
+  courseSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.primaryBlack,
+    fontFamily: Typography.fontFamily.regular,
+    padding: 0,
+  },
+  selectedCourseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.blueLight,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.blueBorder,
+    gap: 10,
+  },
+  selectedCourseInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  courseDropdown: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    marginTop: 4,
+    ...Shadows.md,
+  },
+  courseDropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  courseDropdownPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primaryBlack,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Game Format Grid
+  formatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  formatOption: {
+    width: '47%',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    gap: 4,
+    alignItems: 'flex-start',
+  },
+  formatOptionSel: {
+    backgroundColor: Colors.primaryBlack,
+    borderColor: Colors.primaryBlack,
+  },
+  formatOptionLabel: {
+    fontWeight: 'bold',
+    fontSize: 13,
+    color: Colors.primaryBlack,
+  },
+  formatOptionLabelSel: { color: Colors.white },
+  formatOptionDesc: {
+    fontSize: 10,
+    color: Colors.secondaryText,
+    lineHeight: 13,
+  },
+  formatOptionDescSel: { color: 'rgba(255,255,255,0.7)' },
+
+  // Max Players
+  playerCountRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  playerCountBtn: {
+    flex: 1,
+    height: 44,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerCountBtnSel: {
+    backgroundColor: Colors.primaryBlack,
+    borderColor: Colors.primaryBlack,
+  },
+  playerCountText: { fontWeight: 'bold', fontSize: 16, color: Colors.primaryBlack },
+  playerCountTextSel: { color: Colors.white },
 });

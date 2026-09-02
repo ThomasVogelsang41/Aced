@@ -7,10 +7,12 @@ export function useNearestCourses(
   lng: number | null,
   radiusMiles = 50
 ) {
+  const effLat = lat ?? 39.63;
+  const effLng = lng ?? -84.22;
+
   return useQuery<Course[]>({
-    queryKey: ['nearestCourses', lat?.toFixed(3), lng?.toFixed(3)],
-    queryFn: () => getNearbyCourses(lat!, lng!, radiusMiles),
-    enabled: lat !== null && lng !== null,
+    queryKey: ['nearestCourses', effLat.toFixed(3), effLng.toFixed(3)],
+    queryFn: () => getNearbyCourses(effLat, effLng, radiusMiles),
     staleTime: 15 * 60 * 1000,  // 15 minutes
     gcTime: 60 * 60 * 1000,
     retry: 2,

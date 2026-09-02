@@ -39,15 +39,21 @@ const GAME_MODES_LIST: { id: GameType; title: string; desc: string; icon: string
 ];
 
 const MOCK_DAILY_LEADERBOARD = [
-  { name: 'Ricky Miller', score: '-5', totalStrokes: 49, timeAgo: 'Today 2:15 PM' },
-  { name: 'Jake Miller', score: '-3', totalStrokes: 51, timeAgo: 'Today 11:40 AM' },
-  { name: 'Sarah Jenkins', score: '-1', totalStrokes: 53, timeAgo: 'Today 9:20 AM' },
+  { name: 'Ricky M.', score: '-5', totalStrokes: 49, timeAgo: 'Today 2:15 PM' },
+  { name: 'Jake M.', score: '-3', totalStrokes: 51, timeAgo: 'Today 11:40 AM' },
+  { name: 'Sarah J.', score: '-1', totalStrokes: 53, timeAgo: 'Today 9:20 AM' },
 ];
 
 const MOCK_WEEKLY_LEADERBOARD = [
-  { name: 'Paul McBeth', score: '-9', totalStrokes: 45, timeAgo: '3 days ago' },
-  { name: 'Ricky Miller', score: '-7', totalStrokes: 47, timeAgo: '5 days ago' },
-  { name: 'Eagle Wysocki', score: '-6', totalStrokes: 48, timeAgo: '2 days ago' },
+  { name: 'Paul M.', score: '-9', totalStrokes: 45, timeAgo: '3 days ago' },
+  { name: 'Ricky M.', score: '-7', totalStrokes: 47, timeAgo: '5 days ago' },
+  { name: 'Eagle W.', score: '-6', totalStrokes: 48, timeAgo: '2 days ago' },
+];
+
+const MOCK_MONTHLY_LEADERBOARD = [
+  { name: 'Simon L.', score: '-11', totalStrokes: 43, timeAgo: '2 weeks ago' },
+  { name: 'Paul M.', score: '-9', totalStrokes: 45, timeAgo: '3 weeks ago' },
+  { name: 'Ricky M.', score: '-7', totalStrokes: 47, timeAgo: '1 week ago' },
 ];
 
 const INITIAL_PLAYERS: Player[] = [
@@ -66,7 +72,7 @@ export default function CourseDetailScreen() {
   const [players, setPlayers] = useState<Player[]>(INITIAL_PLAYERS);
   const [isGameModalOpen, setIsGameModalOpen] = useState(false);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
-  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'weekly'>('daily');
+  const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [newPlayerName, setNewPlayerName] = useState('');
   const tourMapRef = useRef<MapView>(null);
 
@@ -169,59 +175,6 @@ export default function CourseDetailScreen() {
           </View>
         </View>
 
-        {/* 3D Photorealistic Aerial Course Flyover Hero Card */}
-        <TouchableOpacity
-          style={styles.explore3dHeroCard}
-          activeOpacity={0.88}
-          onPress={() => setIs3dTourOpen(true)}
-        >
-          <View style={styles.explore3dBadgesRow}>
-            <View style={styles.badge3d}>
-              <Ionicons name="cube-outline" size={12} color={Colors.white} />
-              <Typo style={styles.badge3dText}>EXPLORE 3D</Typo>
-            </View>
-            <View style={styles.badgeLive}>
-              <Typo style={styles.badgeLiveText}>PHOTOREALISTIC AERIAL VIEW</Typo>
-            </View>
-          </View>
-
-          <Typo variant="h2" style={styles.hero3dTitle}>
-            3D Aerial Course Preview
-          </Typo>
-          <Typo variant="caption" style={styles.hero3dSub}>
-            Take a cinematic 360° flyover tour of {course.name} fairway corridors & green targets.
-          </Typo>
-
-          <View style={styles.hero3dPlayRow}>
-            <View style={styles.hero3dPlayBtn}>
-              <Ionicons name="videocam" size={16} color={Colors.primaryBlack} />
-              <Typo style={styles.hero3dPlayText}>Launch 3D Flyover</Typo>
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        <Divider marginVertical={16} />
-
-        {/* Info grid */}
-        <View style={styles.infoGrid}>
-          <InfoRow icon="map-outline" label="Location" value={`${course.city}, ${course.state}`} />
-          <InfoRow icon="disc-outline" label="Holes" value={String(course.holeCount)} />
-          <InfoRow
-            icon="compass-outline"
-            label="OSM Mapping"
-            value={holesGeometry?.some((h: Hole) => h.isOsmVerified) ? "Tees, Baskets & Fairways Mapped" : "Standard Layout"}
-          />
-          {course.distanceMiles !== undefined && (
-            <InfoRow
-              icon="navigate-outline"
-              label="Distance"
-              value={`${course.distanceMiles < 10 ? course.distanceMiles.toFixed(1) : Math.round(course.distanceMiles)} miles away`}
-            />
-          )}
-        </View>
-
-        <Divider marginVertical={16} />
-
         {/* Course Leaderboards Card */}
         <View style={styles.leaderboardCard}>
           <View style={styles.leaderboardHeaderRow}>
@@ -241,6 +194,12 @@ export default function CourseDetailScreen() {
               >
                 <Typo style={[styles.leaderboardToggleText, leaderboardTab === 'weekly' && styles.leaderboardToggleTextActive]}>Weekly</Typo>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.leaderboardToggleBtn, leaderboardTab === 'monthly' && styles.leaderboardToggleActive]}
+                onPress={() => setLeaderboardTab('monthly')}
+              >
+                <Typo style={[styles.leaderboardToggleText, leaderboardTab === 'monthly' && styles.leaderboardToggleTextActive]}>Monthly</Typo>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -249,12 +208,19 @@ export default function CourseDetailScreen() {
             <Typo style={{ color: '#92400E', fontWeight: 'bold', fontSize: 11 }}>
               {leaderboardTab === 'daily'
                 ? "Can you beat today's best round of -5?"
-                : "Can you beat this week's best round of -9?"}
+                : leaderboardTab === 'weekly'
+                ? "Can you beat this week's best round of -9?"
+                : "Can you beat this month's best round of -11?"}
             </Typo>
           </View>
 
           <View style={styles.leaderboardRowsContainer}>
-            {(leaderboardTab === 'daily' ? MOCK_DAILY_LEADERBOARD : MOCK_WEEKLY_LEADERBOARD).map((entry, idx) => (
+            {(leaderboardTab === 'daily'
+              ? MOCK_DAILY_LEADERBOARD
+              : leaderboardTab === 'weekly'
+              ? MOCK_WEEKLY_LEADERBOARD
+              : MOCK_MONTHLY_LEADERBOARD
+            ).map((entry, idx) => (
               <View key={idx} style={styles.leaderboardItemRow}>
                 <Typo style={styles.leaderboardRankText}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</Typo>
                 <View style={{ flex: 1 }}>
@@ -354,6 +320,9 @@ export default function CourseDetailScreen() {
           onPress={handleStartRound}
           icon={<Ionicons name="play" size={18} color={Colors.white} />}
         />
+        <Typo variant="caption" style={{ color: Colors.secondaryText, fontSize: 10, textAlign: 'center', marginTop: 8 }}>
+          Course data supplied by OpenStreetMap (OSM) & DiscGolfAPI.
+        </Typo>
       </View>
 
       {/* 3D Photorealistic Aerial Course Flyover Modal */}
@@ -698,20 +667,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
-    gap: 12,
-    ...Shadows.sm,
+    padding: Spacing.lg + 4,
+    gap: 16,
+    marginVertical: 4,
+    ...Shadows.md,
   },
   leaderboardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  leaderboardToggleBg: { flexDirection: 'row', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, padding: 3 },
-  leaderboardToggleBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
+  leaderboardToggleBg: { flexDirection: 'row', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.full, padding: 4 },
+  leaderboardToggleBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: BorderRadius.full },
   leaderboardToggleActive: { backgroundColor: Colors.primaryBlack },
   leaderboardToggleText: { fontSize: 11, color: Colors.secondaryText, fontWeight: 'bold' },
   leaderboardToggleTextActive: { color: Colors.white },
-  challengeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.md, gap: 6 },
-  leaderboardRowsContainer: { gap: 8 },
-  leaderboardItemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  leaderboardRankText: { fontSize: 18 },
+  challengeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 12, paddingVertical: 10, borderRadius: BorderRadius.lg, gap: 8 },
+  leaderboardRowsContainer: { gap: 12 },
+  leaderboardItemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.backgroundSoft },
+  leaderboardRankText: { fontSize: 22 },
   leaderboardScorePill: { alignItems: 'flex-end' },
 
   // Game Setup Card in Sticky Bottom

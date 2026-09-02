@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   View,
@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typo } from '../../components/ui/Typography';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
@@ -18,6 +19,8 @@ import { degreesToCardinal } from '../../lib/openmeteo';
 import { useNearestCourses } from '../../hooks/useNearestCourses';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
+import { RealisticDiscArtwork } from '../../components/ui/RealisticDiscArtwork';
+import { useRoundStore } from '../../store/roundStore';
 import { Course } from '../../types/course';
 
 function getWeatherIconName(code?: number): React.ComponentProps<typeof Ionicons>['name'] {
@@ -36,6 +39,18 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { latitude, longitude } = useLocation();
   const { data: weather } = useWeather(latitude, longitude);
+  const { activeRound, course: activeCourse } = useRoundStore();
+  const [homeCardJoined, setHomeCardJoined] = useState(false);
+
+  const activeScores = activeRound?.round?.scores ?? [];
+  const recordedScores = activeScores.filter((s) => s.strokes > 0);
+  const hasActiveRound = activeRound !== null && recordedScores.length > 0;
+
+  const totalStrokes = recordedScores.reduce((acc, curr) => acc + curr.strokes, 0);
+  const totalPar = recordedScores.reduce((acc, curr) => acc + curr.par, 0);
+  const scoreDiff = totalStrokes - totalPar;
+  const scoreFormatted = scoreDiff === 0 ? 'E' : scoreDiff > 0 ? `+${scoreDiff}` : `${scoreDiff}`;
+
   const { data: nearbyCourses } = useNearestCourses(latitude, longitude);
 
   const userName = user?.user_metadata?.username ?? user?.email?.split('@')[0] ?? 'Ricky';
@@ -86,7 +101,7 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalScroll}
           >
-            {displayCourses.map((course) => (
+            {displayCourses.map((course: Course) => (
               <TouchableOpacity
                 key={course.id}
                 style={styles.courseCardRow}
@@ -110,10 +125,6 @@ export default function HomeScreen() {
                     <Typo style={styles.courseHoles} numberOfLines={1} ellipsizeMode="tail">
                       {course.holeCount} Holes • {course.state ? `${course.city}, ${course.state}` : course.city}
                     </Typo>
-                    <View style={styles.ratingRow}>
-                      <Ionicons name="star" size={11} color={Colors.primaryBlack} />
-                      <Typo style={styles.ratingText}>4.8</Typo>
-                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -128,23 +139,41 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={18} color={Colors.primaryBlack} />
           </TouchableOpacity>
 
-          <View style={styles.recentRoundCard}>
+          <TouchableOpacity
+            style={styles.recentRoundCard}
+            activeOpacity={0.88}
+            onPress={() => {
+              if (activeRound) {
+                router.push({ pathname: '/round/[id]', params: { id: activeRound.round?.id ?? '1' } });
+              } else {
+                router.push('/(tabs)/profile');
+              }
+            }}
+          >
             <View style={styles.recentTop}>
               <View style={styles.scoreGaugeCircle}>
-                <Typo variant="h2" style={styles.scoreGaugeText}>-4</Typo>
-                <Typo variant="caption" style={styles.scoreGaugeSub}>UNDER</Typo>
+                <Typo variant="h2" style={styles.scoreGaugeText}>
+                  {hasActiveRound ? scoreFormatted : '-4'}
+                </Typo>
+                <Typo variant="caption" style={styles.scoreGaugeSub}>
+                  {hasActiveRound ? (scoreDiff < 0 ? 'UNDER' : scoreDiff > 0 ? 'OVER' : 'PAR') : 'UNDER'}
+                </Typo>
               </View>
               <View style={styles.recentInfo}>
                 <Typo variant="bodyMedium" style={styles.recentCourse}>
-                  {displayCourses[0]?.name ?? 'Maple Hill DGC'}
+                  {hasActiveRound ? (activeCourse?.name ?? 'Active Round') : (displayCourses[0]?.name ?? 'Maple Hill DGC')}
                 </Typo>
-                <Typo variant="small" style={styles.recentDate}>May 18, 2025</Typo>
+                <Typo variant="small" style={styles.recentDate}>
+                  {hasActiveRound ? `Hole ${activeRound?.currentHoleIndex! + 1} of 18 • In Progress` : 'May 18, 2025'}
+                </Typo>
               </View>
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statCol}>
                 <Typo variant="caption" style={styles.statLabel}>SCORE</Typo>
-                <Typo variant="bodyMedium" style={styles.statVal}>54</Typo>
+                <Typo variant="bodyMedium" style={styles.statVal}>
+                  {hasActiveRound ? totalStrokes : 54}
+                </Typo>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statCol}>
@@ -162,71 +191,77 @@ export default function HomeScreen() {
                 <Typo variant="bodyMedium" style={styles.statVal}>4</Typo>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </AnimatedFadeIn>
 
-        {/* Split Bottom Grid: Weather & Wind | My Bag */}
-        <View style={styles.bottomGrid}>
-          {/* Weather Card */}
-          <View style={styles.gridCard}>
-            <Typo variant="caption" style={styles.cardHeaderTitle}>WEATHER & WIND</Typo>
-            <View style={styles.tempRow}>
-              <Ionicons
-                name={getWeatherIconName(weather?.weatherCode)}
-                size={30}
-                color={Colors.primaryBlack}
-              />
-              <View>
-                <Typo variant="display" style={styles.tempNum}>
-                  {weather ? `${weather.temperature}°` : '72°'}
-                </Typo>
-                <Typo variant="caption" style={styles.weatherSub} numberOfLines={1}>
-                  {weather ? weather.description : 'Clear sky'}
-                </Typo>
-              </View>
-            </View>
-            <View style={styles.windFooter}>
-              <Typo variant="caption" style={styles.windLabel}>WIND</Typo>
-              <View style={styles.windValRow}>
-                <Ionicons
-                  name="navigate-outline"
-                  size={13}
-                  color={Colors.primaryBlack}
-                  style={{ transform: [{ rotate: `${weather?.windDirection ?? 315}deg` }] }}
-                />
-                <Typo variant="caption" style={styles.windVal}>
-                  {weather
-                    ? `${weather.windSpeed} mph ${degreesToCardinal(weather.windDirection)}`
-                    : '8 mph NW'}
-                </Typo>
-              </View>
-            </View>
-          </View>
 
-          {/* My Bag Card */}
-          <TouchableOpacity
-            style={styles.gridCard}
-            activeOpacity={0.88}
-            onPress={() => router.push('/(tabs)/bag')}
-          >
-            <Typo variant="caption" style={styles.cardHeaderTitle}>MY BAG</Typo>
-            <View style={styles.bagContent}>
-              <View>
-                <Typo variant="display" style={styles.discCountNum}>14</Typo>
-                <Typo variant="caption" style={styles.weatherSub}>Discs</Typo>
+
+        {/* Split Bottom Grid: Weather & Wind | Create or Join Open Cards */}
+        <AnimatedFadeIn delay={250}>
+          <View style={styles.bottomGrid}>
+            {/* Weather Card */}
+            <View style={styles.gridCard}>
+              <Typo variant="caption" style={styles.cardHeaderTitle}>WEATHER & WIND</Typo>
+              <View style={styles.tempRow}>
+                <Ionicons
+                  name={getWeatherIconName(weather?.weatherCode)}
+                  size={30}
+                  color={Colors.primaryBlack}
+                />
+                <View>
+                  <Typo variant="display" style={styles.tempNum}>
+                    {weather ? `${weather.temperature}°` : '72°'}
+                  </Typo>
+                  <Typo variant="caption" style={styles.weatherSub} numberOfLines={1}>
+                    {weather ? weather.description : 'Clear sky'}
+                  </Typo>
+                </View>
               </View>
-              {/* Disc Graphic Circle */}
-              <View style={styles.discGraphic}>
-                <Typo variant="caption" style={styles.discBrandText}>ACED</Typo>
-                <Typo variant="bodyMedium" style={styles.discNameText}>VOLT</Typo>
+              <View style={styles.windFooter}>
+                <Typo variant="caption" style={styles.windLabel}>WIND</Typo>
+                <View style={styles.windValRow}>
+                  <Ionicons
+                    name="navigate-outline"
+                    size={13}
+                    color={Colors.primaryBlack}
+                    style={{ transform: [{ rotate: `${weather?.windDirection ?? 315}deg` }] }}
+                  />
+                  <Typo variant="caption" style={styles.windVal}>
+                    {weather
+                      ? `${weather.windSpeed} mph ${degreesToCardinal(weather.windDirection)}`
+                      : '8 mph NW'}
+                  </Typo>
+                </View>
               </View>
             </View>
-            <View style={styles.bagLinkRow}>
-              <Typo variant="caption" style={styles.bagLinkText}>View bag</Typo>
-              <Ionicons name="chevron-forward" size={12} color={Colors.blue} />
-            </View>
-          </TouchableOpacity>
-        </View>
+
+            {/* Create or Join Open Cards Card */}
+            <TouchableOpacity
+              style={styles.gridCard}
+              activeOpacity={0.88}
+              onPress={() => router.push('/(tabs)/openplay')}
+            >
+              <Typo variant="caption" style={styles.cardHeaderTitle}>OPEN CARDS</Typo>
+              <View style={styles.openCardGridContent}>
+                <View style={styles.flameIconCircle}>
+                  <Ionicons name="flame" size={20} color={Colors.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Typo variant="bodyMedium" style={{ fontWeight: 'bold', fontSize: 12, lineHeight: 16 }}>
+                    Create or Join Open Cards
+                  </Typo>
+                  <Typo variant="caption" style={{ color: Colors.secondaryText, marginTop: 2, fontSize: 10 }}>
+                    3 Open Cards near you
+                  </Typo>
+                </View>
+              </View>
+              <View style={styles.bagLinkRow}>
+                <Typo variant="caption" style={styles.bagLinkText}>Open Play →</Typo>
+                <Ionicons name="chevron-forward" size={12} color={Colors.blue} />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </AnimatedFadeIn>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -237,7 +272,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: 32 },
 
   // Primary CTA
   startRoundCard: {
@@ -275,6 +310,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
+    marginTop: Spacing.base,
   },
   sectionTitle: {
     color: Colors.secondaryText,
@@ -288,15 +324,18 @@ const styles = StyleSheet.create({
   horizontalScroll: {
     gap: Spacing.md,
     paddingBottom: Spacing.xl,
+    paddingRight: Spacing.lg,
   },
   courseCardRow: {
-    width: 235,
+    width: 240,
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.base,
+    minHeight: 72,
+    justifyContent: 'center',
     ...Shadows.sm,
   },
   courseRowBody: {
@@ -351,7 +390,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.lg,
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.lg,
     ...Shadows.sm,
   },
   recentTop: {
@@ -392,6 +431,7 @@ const styles = StyleSheet.create({
   bottomGrid: {
     flexDirection: 'row',
     gap: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   gridCard: {
     flex: 1,
@@ -399,9 +439,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.base,
+    padding: Spacing.lg,
     justifyContent: 'space-between',
-    minHeight: 140,
+    minHeight: 148,
     ...Shadows.sm,
   },
   cardHeaderTitle: {
@@ -456,4 +496,70 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   bagLinkText: { color: Colors.blue, fontFamily: Typography.fontFamily.semiBold, fontSize: 11 },
+
+  seeAllText: { fontSize: 12, fontWeight: 'bold', color: Colors.blue },
+
+  openCardGridContent: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4 },
+  flameIconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primaryBlack, alignItems: 'center', justifyContent: 'center' },
+
+  // PLAY Bar & Open Cards Styles
+  playBarCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+    marginVertical: 4,
+    ...Shadows.sm,
+  },
+  playBarHeaderLabel: { fontSize: 10, color: Colors.secondaryText, fontWeight: 'bold', letterSpacing: 0.8 },
+  playBarButtonsRow: { flexDirection: 'row', gap: 8 },
+  playBarBtn: {
+    flex: 1.2,
+    height: 44,
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  playBarBtnText: { color: Colors.white, fontWeight: 'bold', fontSize: 12 },
+  playBarBtnSecondary: {
+    flex: 1,
+    backgroundColor: Colors.backgroundSoft,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  playBarBtnTextSecondary: { color: Colors.primaryBlack, fontWeight: 'bold', fontSize: 12 },
+
+  featuredOpenCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    gap: 10,
+    marginVertical: 4,
+    ...Shadows.sm,
+  },
+  featuredCardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  skinsBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.full },
+  skinsBadgeText: { color: '#D97706', fontSize: 11, fontWeight: 'bold' },
+  featuredCourseTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.primaryBlack },
+  featuredPlayersRow: { flexDirection: 'row', alignItems: 'center' },
+  avatarsRow: { flexDirection: 'row' },
+  avatarDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.white },
+  avatarDotText: { color: Colors.white, fontWeight: 'bold', fontSize: 11 },
+  joinBtnSmall: { backgroundColor: Colors.primaryBlack, paddingHorizontal: 14, paddingVertical: 8, borderRadius: BorderRadius.lg },
+  joinBtnSmallJoined: { backgroundColor: Colors.backgroundSoft, borderWidth: 1, borderColor: Colors.border },
+  joinBtnSmallText: { color: Colors.white, fontWeight: 'bold', fontSize: 11 },
+  joinBtnSmallTextJoined: { color: Colors.primaryBlack },
+
+  quickCardsList: { borderTopWidth: 1, borderTopColor: Colors.backgroundSoft, paddingTop: 8, gap: 6 },
+  quickCardItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  quickCardText: { flex: 1, fontSize: 12, fontWeight: '600', color: Colors.primaryBlack, marginLeft: 6 },
+  spotsTag: { backgroundColor: Colors.backgroundSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  spotsTagText: { fontSize: 10, color: Colors.secondaryText, fontWeight: 'bold' },
 });

@@ -140,12 +140,6 @@ export default function PlayScreen() {
                         </Typo>
                       </View>
                     )}
-                    {c.rating && (
-                      <View style={styles.ratingBadge}>
-                        <Ionicons name="star" size={10} color="#F59E0B" />
-                        <Typo style={styles.ratingText}>{c.rating.toFixed(1)}</Typo>
-                      </View>
-                    )}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -160,7 +154,7 @@ export default function PlayScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: { padding: Spacing.lg, gap: Spacing.lg },
+  content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 32 },
   title: { fontFamily: Typography.fontFamily.bold, marginBottom: Spacing.md },
   activeCard: {
     backgroundColor: Colors.backgroundSoft,
@@ -185,13 +179,13 @@ const styles = StyleSheet.create({
   sectionLabel: { color: Colors.secondaryText, letterSpacing: 0.8 },
   loadingBox: { paddingVertical: 40, alignItems: 'center' },
 
-  courseGrid: { gap: 10 },
+  courseGrid: { gap: 12 },
   courseCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.md,
+    padding: Spacing.lg,
     gap: 12,
     ...Shadows.sm,
   },

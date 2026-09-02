@@ -8,6 +8,7 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,16 +19,35 @@ import { Button } from '../../components/ui/Button';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../constants/theme';
 import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
-import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
+import { RealisticDiscArtwork } from '../../components/ui/RealisticDiscArtwork';
+import { searchDiscs, getTryDiscsBuyUrl, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
+import type { TryDiscsDisc } from '../../types/disc';
 
-const MOCK_BAG_DISCS = [
+interface BagDiscItem {
+  id: string;
+  name: string;
+  brand: string;
+  plastic: string;
+  color: string;
+  textColor: string;
+  speed: number;
+  glide: number;
+  turn: number;
+  fade: number;
+  confidence: string | null;
+  avgDistance: string;
+  usage: string;
+  featured?: boolean;
+}
+
+const INITIAL_BAG_DISCS: BagDiscItem[] = [
   {
-    id: 'volt',
+    id: 'volt-1',
     name: 'Volt',
     brand: 'MVP',
     plastic: 'Neutron',
-    color: '#0055FF',
-    discTextColor: '#FFFFFF',
+    color: '#2563EB',
+    textColor: '#FFFFFF',
     speed: 8,
     glide: 5,
     turn: -0.5,
@@ -38,12 +58,12 @@ const MOCK_BAG_DISCS = [
     featured: true,
   },
   {
-    id: 'explorer',
+    id: 'explorer-1',
     name: 'Explorer',
     brand: 'Discmania',
     plastic: 'Neo',
-    color: '#F4F4F6',
-    discTextColor: '#09090A',
+    color: '#059669',
+    textColor: '#FFFFFF',
     speed: 7,
     glide: 5,
     turn: 0,
@@ -51,15 +71,14 @@ const MOCK_BAG_DISCS = [
     confidence: null,
     avgDistance: '242 ft',
     usage: '24%',
-    featured: false,
   },
   {
-    id: 'firebird',
+    id: 'firebird-1',
     name: 'Firebird',
     brand: 'Innova',
     plastic: 'Champion',
-    color: '#EF4444',
-    discTextColor: '#FFFFFF',
+    color: '#DC2626',
+    textColor: '#FFFFFF',
     speed: 9,
     glide: 3,
     turn: 0,
@@ -67,15 +86,14 @@ const MOCK_BAG_DISCS = [
     confidence: null,
     avgDistance: '325 ft',
     usage: '15%',
-    featured: false,
   },
   {
-    id: 'luna',
+    id: 'luna-1',
     name: 'Luna',
     brand: 'Discraft',
     plastic: 'Jawbreaker',
-    color: '#D8B4FE',
-    discTextColor: '#09090A',
+    color: '#8B5CF6',
+    textColor: '#FFFFFF',
     speed: 3,
     glide: 3,
     turn: 0,
@@ -83,15 +101,14 @@ const MOCK_BAG_DISCS = [
     confidence: null,
     avgDistance: '195 ft',
     usage: '16%',
-    featured: false,
   },
   {
-    id: 'destroyer',
+    id: 'destroyer-1',
     name: 'Destroyer',
     brand: 'Innova',
     plastic: 'Star',
-    color: '#93C5FD',
-    discTextColor: '#09090A',
+    color: '#D97706',
+    textColor: '#FFFFFF',
     speed: 12,
     glide: 5,
     turn: -1,
@@ -99,8 +116,16 @@ const MOCK_BAG_DISCS = [
     confidence: null,
     avgDistance: '364 ft',
     usage: '7%',
-    featured: false,
   },
+];
+
+const POPULAR_QUICK_PICKS: Partial<BagDiscItem>[] = [
+  { name: 'Buzzz', brand: 'Discraft', plastic: 'Z Line', speed: 5, glide: 4, turn: -1, fade: 1, color: '#10B981' },
+  { name: 'Zone', brand: 'Discraft', plastic: 'ESP', speed: 4, glide: 3, turn: 0, fade: 3, color: '#EF4444' },
+  { name: 'Destroyer', brand: 'Innova', plastic: 'Star', speed: 12, glide: 5, turn: -1, fade: 3, color: '#3B82F6' },
+  { name: 'Teebird', brand: 'Innova', plastic: 'Champion', speed: 7, glide: 5, turn: 0, fade: 2, color: '#F59E0B' },
+  { name: 'Grace', brand: 'Latitude 64', plastic: 'Royal Grand', speed: 11, glide: 6, turn: -1, fade: 2, color: '#EC4899' },
+  { name: 'Aviar', brand: 'Innova', plastic: 'DX', speed: 2, glide: 3, turn: 0, fade: 1, color: '#6366F1' },
 ];
 
 const MOCK_SHOP_ITEMS = [
@@ -138,10 +163,13 @@ const MOCK_SHOP_ITEMS = [
   },
 ];
 
+const VIBRANT_DISC_COLORS = ['#2563EB', '#DC2626', '#059669', '#D97706', '#8B5CF6', '#EC4899', '#4F46E5'];
+
 export default function BagScreen() {
-  const [activeSubTab, setActiveSubTab] = useState<'discs' | 'shop'>('discs');
+  const [userBagDiscs, setUserBagDiscs] = useState<BagDiscItem[]>(INITIAL_BAG_DISCS);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [discSearch, setDiscSearch] = useState('');
+  const [addedToastMessage, setAddedToastMessage] = useState<string | null>(null);
 
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ['discSearch', discSearch],
@@ -150,133 +178,171 @@ export default function BagScreen() {
     staleTime: 10 * 60 * 1000,
   });
 
+  const handleAddDiscToBag = (discData: {
+    name: string;
+    brand: string;
+    plastic?: string;
+    speed?: number;
+    glide?: number;
+    turn?: number;
+    fade?: number;
+    color?: string;
+  }) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const randomColor = discData.color ?? VIBRANT_DISC_COLORS[Math.floor(Math.random() * VIBRANT_DISC_COLORS.length)];
+
+    const newDisc: BagDiscItem = {
+      id: `disc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: discData.name,
+      brand: discData.brand || 'Custom Mold',
+      plastic: discData.plastic || 'Premium Blend',
+      color: randomColor,
+      textColor: '#FFFFFF',
+      speed: discData.speed ?? 7,
+      glide: discData.glide ?? 5,
+      turn: discData.turn ?? 0,
+      fade: discData.fade ?? 2,
+      confidence: '85%',
+      avgDistance: `${Math.round(180 + (discData.speed ?? 7) * 16)} ft`,
+      usage: '10%',
+    };
+
+    setUserBagDiscs((prev) => [newDisc, ...prev]);
+    setAddModalVisible(false);
+    setDiscSearch('');
+
+    setAddedToastMessage(`${newDisc.name} by ${newDisc.brand} added to My Bag!`);
+    setTimeout(() => {
+      setAddedToastMessage(null);
+    }, 4000);
+  };
+
+  const handleRemoveDisc = (discId: string, discName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setUserBagDiscs((prev) => prev.filter((d) => d.id !== discId));
+    setAddedToastMessage(`${discName} removed from Bag`);
+    setTimeout(() => setAddedToastMessage(null), 3000);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Uniform Top Header */}
+      {/* Top Header */}
       <AnimatedFadeIn delay={0} style={{ paddingHorizontal: Spacing.lg }}>
-        <TabHeader subtitle="Disc Inventory & Gear" title="My Bag" />
+        <TabHeader subtitle="Disc Inventory" title="My Bag" />
       </AnimatedFadeIn>
 
-      {/* Sub Tabs: Discs | Pro Shop */}
-      <AnimatedFadeIn delay={100}>
-        <View style={styles.subTabsRow}>
-          {(['discs', 'shop'] as const).map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.subTabItem, activeSubTab === tab && styles.subTabItemActive]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveSubTab(tab);
-              }}
-            >
-              <Typo
-                style={[
-                  styles.subTabText,
-                  activeSubTab === tab && styles.subTabTextActive,
-                ]}
-              >
-                {tab === 'discs' ? 'Discs Inventory' : 'Pro Shop'}
-              </Typo>
-            </TouchableOpacity>
-          ))}
+      {/* Added Toast Banner */}
+      {addedToastMessage && (
+        <View style={styles.toastBanner}>
+          <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
+          <Typo style={styles.toastText}>{addedToastMessage}</Typo>
         </View>
-      </AnimatedFadeIn>
+      )}
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {activeSubTab === 'discs' ? (
-          <>
-            {/* Add Disc CTA */}
-            <TouchableOpacity style={styles.addDiscBanner} onPress={() => setAddModalVisible(true)}>
-              <Ionicons name="add-circle" size={20} color={Colors.white} />
-              <Typo style={styles.addDiscText}>Add New Disc to Bag</Typo>
-            </TouchableOpacity>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Add Disc to Golf Bag Button */}
+        <TouchableOpacity
+          style={styles.addDiscPrimaryBanner}
+          activeOpacity={0.88}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setAddModalVisible(true);
+          }}
+        >
+          <Ionicons name="add-circle" size={20} color={Colors.white} />
+          <Typo style={{ color: Colors.white, fontWeight: 'bold', fontSize: 14 }}>+ Add Disc to Golf Bag</Typo>
+        </TouchableOpacity>
 
-            {/* Disc List */}
-            {MOCK_BAG_DISCS.map((disc) => (
-              <View
-                key={disc.id}
-                style={[
-                  styles.discCard,
-                  disc.featured && styles.discCardFeatured,
-                ]}
-              >
-                <View style={styles.cardMainRow}>
-                  {/* Render Circle Disc Artwork */}
-                  <View style={[styles.discArtwork, { backgroundColor: disc.color }]}>
-                    <Typo style={[styles.discArtworkText, { color: disc.discTextColor }]}>
-                      {disc.name.toUpperCase()}
-                    </Typo>
-                  </View>
-
-                  <View style={styles.discMetaInfo}>
-                    <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
-                    <Typo variant="caption" style={styles.discBrandText}>
-                      {disc.brand} • {disc.plastic}
-                    </Typo>
-
-                    {/* Flight numbers grid */}
-                    <View style={styles.flightGrid}>
-                      <FlightBox val={disc.speed} label="SPEED" />
-                      <FlightBox val={disc.glide} label="GLIDE" />
-                      <FlightBox val={disc.turn} label="TURN" />
-                      <FlightBox val={disc.fade} label="FADE" />
-                    </View>
-                  </View>
-
-                  {/* Right Stats Box */}
-                  <View style={styles.rightStatsCol}>
-                    {disc.confidence && (
-                      <View style={styles.confidenceBadge}>
-                        <Typo style={styles.confidenceText}>{disc.confidence} CONF</Typo>
-                      </View>
-                    )}
-                    <View style={styles.statGroup}>
-                      <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
-                      <Typo variant="caption" style={styles.statSubLabel}>AVG DISTANCE</Typo>
-                    </View>
-                    <View style={styles.statGroup}>
-                      <Typo variant="bodyMedium" style={styles.usageValue}>{disc.usage}</Typo>
-                      <Typo variant="caption" style={styles.statSubLabel}>USAGE</Typo>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </>
-        ) : (
-          /* PRO SHOP TAB INTEGRATED IN BAG */
-          <View style={styles.shopGrid}>
-            <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8, marginBottom: 8 }}>
-              OFFICIAL ACED PRO SHOP
+        {/* Disc List or Empty State */}
+        {userBagDiscs.length === 0 ? (
+          <View style={styles.emptyBagCard}>
+            <Ionicons name="disc-outline" size={48} color={Colors.gray400} />
+            <Typo variant="h3" style={{ fontWeight: 'bold', marginTop: 12 }}>Your Bag is Empty</Typo>
+            <Typo style={{ color: Colors.secondaryText, fontSize: 13, textAlign: 'center', lineHeight: 18, marginTop: 4 }}>
+              Add discs to your bag to track your disc inventory, flight stats, and store search with Try Discs.
             </Typo>
-            {MOCK_SHOP_ITEMS.map((item) => (
-              <View key={item.id} style={styles.shopCard}>
-                <View style={styles.shopIconBadge}>
-                  <Ionicons name={item.icon as any} size={28} color={Colors.primaryBlack} />
-                </View>
-                <View style={styles.shopCardBody}>
-                  <View style={styles.shopTagBadge}>
-                    <Typo style={styles.shopTagText}>{item.tag}</Typo>
+            <TouchableOpacity
+              style={styles.emptyBagBtn}
+              activeOpacity={0.88}
+              onPress={() => setAddModalVisible(true)}
+            >
+              <Typo style={{ color: Colors.white, fontWeight: 'bold', fontSize: 14 }}>+ Add Disc to Bag</Typo>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          userBagDiscs.map((disc) => (
+            <View key={disc.id} style={[styles.discCard, disc.featured && styles.discCardFeatured]}>
+              <View style={styles.cardMainRow}>
+                {/* Realistic 3D Disc Artwork */}
+                <RealisticDiscArtwork name={disc.name} brand={disc.brand} color={disc.color} textColor={disc.textColor} size={64} />
+
+                <View style={styles.discMetaInfo}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typo variant="h3" style={styles.discNameTitle}>{disc.name}</Typo>
+                    <TouchableOpacity onPress={() => handleRemoveDisc(disc.id, disc.name)} style={{ padding: 4 }}>
+                      <Ionicons name="trash-outline" size={16} color={Colors.gray400} />
+                    </TouchableOpacity>
                   </View>
-                  <Typo style={styles.shopItemTitle}>{item.title}</Typo>
-                  <Typo style={styles.shopItemPrice}>{item.price}</Typo>
-                  <Button label="Buy Now" variant="primary" size="sm" style={{ marginTop: 8 }} />
+                  <Typo variant="caption" style={styles.discBrandText}>
+                    {disc.brand} • {disc.plastic}
+                  </Typo>
+
+                  {/* Flight numbers grid */}
+                  <View style={styles.flightGrid}>
+                    <FlightBox val={disc.speed} label="SPD" />
+                    <FlightBox val={disc.glide} label="GLD" />
+                    <FlightBox val={disc.turn} label="TRN" />
+                    <FlightBox val={disc.fade} label="FDE" />
+                  </View>
+                </View>
+
+                {/* Right Stats Box */}
+                <View style={styles.rightStatsCol}>
+                  {disc.confidence && (
+                    <View style={styles.confidenceBadge}>
+                      <Typo style={styles.confidenceText}>{disc.confidence} CONF</Typo>
+                    </View>
+                  )}
+                  <View style={styles.statGroup}>
+                    <Typo variant="bodyMedium" style={styles.distValue}>{disc.avgDistance}</Typo>
+                    <Typo variant="caption" style={styles.statSubLabel}>AVG DIST</Typo>
+                  </View>
                 </View>
               </View>
-            ))}
-          </View>
+
+              {/* Direct Link to Try Discs store search */}
+              <TouchableOpacity
+                style={styles.findDiscBtn}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(getTryDiscsBuyUrl(disc.name))}
+              >
+                <Ionicons name="cart-outline" size={14} color={Colors.blue} />
+                <Typo style={styles.findDiscBtnText}>Search Stores on Try Discs</Typo>
+              </TouchableOpacity>
+            </View>
+          ))
         )}
+
+        {/* Try Discs Attribution Link */}
+        <TouchableOpacity
+          style={{ paddingVertical: 16, alignItems: 'center' }}
+          onPress={() => Linking.openURL(TRYDISCS_ATTRIBUTION.url)}
+        >
+          <Typo style={{ color: Colors.blue, fontSize: 11, textDecorationLine: 'underline', fontWeight: 'bold' }}>
+            {TRYDISCS_ATTRIBUTION.text}
+          </Typo>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* ADD DISC SEARCH MODAL */}
       <Modal visible={addModalVisible} animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
         <SafeAreaView style={styles.modalSafe} edges={['top']}>
-          <View style={styles.modalHeader}>
-            <Typo variant="h2" style={styles.modalTitle}>Search Disc Database</Typo>
+          <View style={styles.modalHeaderDown}>
+            <View>
+              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Add Disc to Bag</Typo>
+              <Typo variant="caption" style={{ color: Colors.secondaryText }}>Search TryDiscs database or select quick pick</Typo>
+            </View>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setAddModalVisible(false)}>
               <Ionicons name="close" size={22} color={Colors.primaryBlack} />
             </TouchableOpacity>
@@ -287,43 +353,115 @@ export default function BagScreen() {
               <Ionicons name="search" size={18} color={Colors.gray400} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search Destroyer, Buzzz, Destroyer..."
+                placeholder="Search Destroyer, Buzzz, Zone, Luna..."
                 placeholderTextColor={Colors.gray400}
                 value={discSearch}
                 onChangeText={setDiscSearch}
+                autoCapitalize="none"
               />
+              {discSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setDiscSearch('')}>
+                  <Ionicons name="close-circle" size={18} color={Colors.gray400} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           {searchLoading ? (
             <View style={{ padding: 40, alignItems: 'center' }}>
-              <ActivityIndicator color={Colors.primaryBlack} />
+              <ActivityIndicator color={Colors.primaryBlack} size="large" />
+              <Typo style={{ marginTop: 12, color: Colors.secondaryText, fontSize: 13 }}>Searching TryDiscs API...</Typo>
             </View>
-          ) : (
+          ) : discSearch.trim().length >= 2 ? (
             <FlatList
               data={searchResults ?? []}
               keyExtractor={(item, idx) => `${item.brand}-${item.disc}-${idx}`}
-              renderItem={({ item }) => (
+              renderItem={({ item }: { item: TryDiscsDisc }) => (
                 <View style={styles.discSearchResultRow}>
-                  <View style={{ flex: 1 }}>
-                    <Typo style={{ fontWeight: 'bold' }}>{item.disc}</Typo>
-                    <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>{item.brand}</Typo>
+                  <RealisticDiscArtwork name={item.disc} brand={item.brand} color={VIBRANT_DISC_COLORS[Math.abs(item.disc.length) % VIBRANT_DISC_COLORS.length]} size={48} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Typo style={{ fontWeight: 'bold', fontSize: 15 }}>{item.disc}</Typo>
+                    <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>{item.brand} • {item.category ?? 'Disc'}</Typo>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                      <Typo style={{ fontSize: 10, color: Colors.blue, fontWeight: 'bold' }}>
+                        {item.speed ?? '—'} / {item.glide ?? '—'} / {item.turn ?? '—'} / {item.fade ?? '—'}
+                      </Typo>
+                    </View>
                   </View>
-                  <Button label="Add" variant="ghost" size="sm" onPress={() => setAddModalVisible(false)} />
+                  <Button
+                    label="+ Add"
+                    variant="primary"
+                    size="sm"
+                    onPress={() =>
+                      handleAddDiscToBag({
+                        name: item.disc,
+                        brand: item.brand,
+                        plastic: item.category ?? 'Premium',
+                        speed: item.speed,
+                        glide: item.glide,
+                        turn: item.turn,
+                        fade: item.fade,
+                      })
+                    }
+                  />
                 </View>
               )}
-              contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
+              contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingBottom: 20 }}
             />
+          ) : (
+            <ScrollView contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingBottom: 20 }}>
+              <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8, marginBottom: 12 }}>
+                POPULAR MOLD QUICK PICKS
+              </Typo>
+              <View style={{ gap: 10 }}>
+                {POPULAR_QUICK_PICKS.map((item, idx) => (
+                  <View key={idx} style={styles.discSearchResultRow}>
+                    <RealisticDiscArtwork name={item.name!} brand={item.brand!} color={item.color!} size={48} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Typo style={{ fontWeight: 'bold', fontSize: 15 }}>{item.name}</Typo>
+                      <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>{item.brand} • {item.plastic}</Typo>
+                      <Typo style={{ fontSize: 10, color: Colors.blue, fontWeight: 'bold', marginTop: 2 }}>
+                        {item.speed} / {item.glide} / {item.turn} / {item.fade}
+                      </Typo>
+                    </View>
+                    <Button
+                      label="+ Add"
+                      variant="primary"
+                      size="sm"
+                      onPress={() =>
+                        handleAddDiscToBag({
+                          name: item.name!,
+                          brand: item.brand!,
+                          plastic: item.plastic!,
+                          speed: item.speed,
+                          glide: item.glide,
+                          turn: item.turn,
+                          fade: item.fade,
+                          color: item.color,
+                        })
+                      }
+                    />
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           )}
 
-          <View style={{ padding: 12, alignItems: 'center' }}>
-            <Typo style={{ color: Colors.gray400, fontSize: 10 }}>{TRYDISCS_ATTRIBUTION.text}</Typo>
-          </View>
+          <TouchableOpacity
+            style={{ padding: 16, alignItems: 'center' }}
+            onPress={() => Linking.openURL(TRYDISCS_ATTRIBUTION.url)}
+          >
+            <Typo style={{ color: Colors.blue, fontSize: 11, textDecorationLine: 'underline', fontWeight: 'bold' }}>
+              {TRYDISCS_ATTRIBUTION.text}
+            </Typo>
+          </TouchableOpacity>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
+
+
 
 const FlightBox: React.FC<{ val: number; label: string }> = ({ val, label }) => (
   <View style={styles.flightBox}>
@@ -334,29 +472,34 @@ const FlightBox: React.FC<{ val: number; label: string }> = ({ val, label }) => 
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
-  subTabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.md,
-  },
-  subTabItem: { paddingVertical: Spacing.xs, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  subTabItemActive: { borderBottomColor: Colors.primaryBlack },
-  subTabText: { color: Colors.secondaryText, fontSize: 13, fontFamily: Typography.fontFamily.medium },
-  subTabTextActive: { color: Colors.primaryBlack, fontFamily: Typography.fontFamily.bold },
-
   scroll: { flex: 1 },
-  content: { padding: Spacing.lg, gap: Spacing.md },
+  content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: 40 },
+  subTabsRow: { flexDirection: 'row', paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs, gap: Spacing.sm },
+  subTabItem: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: BorderRadius.full, backgroundColor: Colors.backgroundSoft },
+  subTabItemActive: { backgroundColor: Colors.primaryBlack },
+  subTabText: { fontSize: Typography.size.sm, fontFamily: Typography.fontFamily.medium, color: Colors.secondaryText },
+  subTabTextActive: { color: Colors.white, fontFamily: Typography.fontFamily.bold },
+
+  toastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.green,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    marginHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    gap: 8,
+    marginBottom: Spacing.xs,
+  },
+  toastText: { color: Colors.white, fontWeight: 'bold', fontSize: 13 },
 
   addDiscBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primaryBlack,
+    paddingVertical: 14,
     borderRadius: BorderRadius.xl,
-    paddingVertical: 12,
     gap: 8,
     ...Shadows.sm,
   },
@@ -370,15 +513,44 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     ...Shadows.sm,
   },
+  emptyBagCard: {
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    marginVertical: Spacing.md,
+  },
+  addDiscPrimaryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.lg,
+    gap: 8,
+    marginBottom: Spacing.md,
+    ...Shadows.md,
+  },
+  emptyBagBtn: {
+    backgroundColor: Colors.primaryBlack,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    marginTop: 16,
+    ...Shadows.sm,
+  },
   discCardFeatured: { borderColor: Colors.blue, borderWidth: 1.5 },
   cardMainRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },
-  discArtwork: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  discArtworkText: { fontSize: 8, fontFamily: Typography.fontFamily.extraBold },
   discMetaInfo: { flex: 1, gap: 2 },
   discNameTitle: { fontFamily: Typography.fontFamily.bold, fontSize: 16 },
   discBrandText: { color: Colors.secondaryText, fontSize: 11 },
   flightGrid: { flexDirection: 'row', gap: 4, marginTop: 4 },
-  flightBox: { backgroundColor: Colors.backgroundSoft, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2, alignItems: 'center' },
+  flightBox: { backgroundColor: Colors.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, alignItems: 'center' },
   flightNum: { fontSize: 10, fontWeight: 'bold' },
   flightLabel: { fontSize: 6, color: Colors.secondaryText, fontWeight: 'bold' },
   rightStatsCol: { alignItems: 'flex-end', gap: 4 },
@@ -386,8 +558,19 @@ const styles = StyleSheet.create({
   confidenceText: { color: Colors.blue, fontSize: 8, fontWeight: 'bold' },
   statGroup: { alignItems: 'flex-end' },
   distValue: { fontSize: 12, fontWeight: 'bold' },
-  usageValue: { fontSize: 12, fontWeight: 'bold' },
   statSubLabel: { fontSize: 7, color: Colors.secondaryText, fontWeight: 'bold' },
+  findDiscBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.blueLight,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 10,
+    gap: 6,
+  },
+  findDiscBtnText: { color: Colors.blue, fontWeight: 'bold', fontSize: 11 },
 
   // Shop Grid
   shopGrid: { gap: 12 },
@@ -400,20 +583,28 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     padding: Spacing.md,
     gap: Spacing.md,
-    ...Shadows.sm,
   },
-  shopIconBadge: { width: 56, height: 56, borderRadius: BorderRadius.lg, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
-  shopCardBody: { flex: 1, gap: 2 },
-  shopTagBadge: { backgroundColor: Colors.primaryBlack, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start' },
-  shopTagText: { color: Colors.white, fontSize: 8, fontWeight: 'bold' },
-  shopItemTitle: { fontWeight: 'bold', fontSize: 14, marginTop: 2 },
-  shopItemPrice: { color: Colors.blue, fontWeight: 'bold', fontSize: 13 },
+  shopIconBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
+  shopCardBody: { flex: 1 },
+  shopTagBadge: { backgroundColor: Colors.blueLight, alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 2 },
+  shopTagText: { color: Colors.blue, fontSize: 9, fontWeight: 'bold' },
+  shopItemTitle: { fontWeight: 'bold', fontSize: 14 },
+  shopItemPrice: { color: Colors.secondaryText, fontSize: 12 },
 
+  // Modal
   modalSafe: { flex: 1, backgroundColor: Colors.white },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  modalTitle: { fontFamily: Typography.fontFamily.bold },
+  modalHeaderDown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 52,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.base, paddingVertical: 12, gap: Spacing.sm },
+  searchInput: { flex: 1, fontFamily: Typography.fontFamily.regular, fontSize: Typography.size.base, color: Colors.primaryBlack, padding: 0 },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.backgroundSoft, borderRadius: BorderRadius.lg, paddingHorizontal: 12, height: 42, gap: 8 },
-  searchInput: { flex: 1, fontSize: 13, color: Colors.primaryBlack },
-  discSearchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  discSearchResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
 });

@@ -22,14 +22,57 @@ import { TabHeader } from '../../components/TabHeader';
 import { AnimatedFadeIn } from '../../components/ui/AnimatedFadeIn';
 import { DiscSpinner } from '../../components/ui/DiscSpinner';
 import { useAuthStore } from '../../store/authStore';
+import { ScoreTrendMountainChart } from '../../components/ui/ScoreTrendMountainChart';
 import { searchDiscs, TRYDISCS_ATTRIBUTION } from '../../lib/trydiscs';
 
 type ProfileSubTab = 'profile' | 'friends' | 'settings';
 
-const MOCK_RECENT = [
-  { course: 'Maple Hill DGC', date: 'May 18, 2025', diff: '-4', score: 54, color: Colors.blue },
-  { course: 'Pine Ridge DGC', date: 'May 11, 2025', diff: '+2', score: 58, color: Colors.red },
-  { course: 'Oak Grove DGC', date: 'May 4, 2025', diff: '-1', score: 55, color: Colors.green },
+const FULL_ROUNDS_HISTORY = [
+  {
+    id: 'r-1',
+    course: 'Maple Hill DGC (Golds)',
+    date: 'May 18, 2025',
+    diff: '-4',
+    score: 54,
+    par: 58,
+    eagles: 1,
+    birdies: 6,
+    pars: 8,
+    bogeys: 2,
+    doubleBogeys: 1,
+    holeScores: [3, 2, 4, 3, 2, 3, 4, 3, 3, 2, 3, 4, 3, 2, 3, 4, 2, 3],
+    holePars:   [3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3],
+  },
+  {
+    id: 'r-2',
+    course: 'Pine Ridge DGC',
+    date: 'May 11, 2025',
+    diff: '+2',
+    score: 58,
+    par: 56,
+    eagles: 0,
+    birdies: 4,
+    pars: 10,
+    bogeys: 3,
+    doubleBogeys: 1,
+    holeScores: [3, 4, 3, 4, 3, 2, 4, 4, 3, 3, 4, 3, 4, 3, 3, 3, 4, 3],
+    holePars:   [3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 4, 3, 3, 3, 3, 3],
+  },
+  {
+    id: 'r-3',
+    course: 'Oak Grove DGC',
+    date: 'May 4, 2025',
+    diff: '-1',
+    score: 55,
+    par: 56,
+    eagles: 0,
+    birdies: 5,
+    pars: 9,
+    bogeys: 4,
+    doubleBogeys: 0,
+    holeScores: [2, 3, 3, 3, 4, 2, 3, 4, 3, 3, 2, 4, 3, 3, 4, 3, 3, 3],
+    holePars:   [3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 3, 3],
+  },
 ];
 
 const MOCK_BAG_DISCS = [
@@ -162,6 +205,9 @@ export default function ProfileScreen() {
   const [activeSegment, setActiveSegment] = useState<'profile' | 'friends' | 'settings'>('profile');
   const [addFriendModalVisible, setAddFriendModalVisible] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [friendsList, setFriendsList] = useState(MOCK_FRIENDS);
+  const [newFriendHandle, setNewFriendHandle] = useState('');
+  const [selectedHistoryRound, setSelectedHistoryRound] = useState<typeof FULL_ROUNDS_HISTORY[0] | null>(null);
   const [isAllRoundsModalVisible, setIsAllRoundsModalVisible] = useState(false);
 
   // Native Settings Switch States
@@ -170,6 +216,22 @@ export default function ProfileScreen() {
   const [weatherAlertsEnabled, setWeatherAlertsEnabled] = useState(true);
   const [gpsHighPrecision, setGpsHighPrecision] = useState(true);
   const [publicProfile, setPublicProfile] = useState(true);
+
+  const handleAddFriend = () => {
+    if (!newFriendHandle.trim()) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const cleanHandle = newFriendHandle.replace('@', '').trim();
+    const newFriend = {
+      id: `friend-${Date.now()}`,
+      name: cleanHandle.charAt(0).toUpperCase() + cleanHandle.slice(1),
+      username: cleanHandle.toLowerCase(),
+      handicap: (Math.random() * 8 + 1).toFixed(1),
+      isLive: false,
+    };
+    setFriendsList((prev: any) => [newFriend, ...prev]);
+    setNewFriendHandle('');
+    setAddFriendModalVisible(false);
+  };
 
   const userName = user?.user_metadata?.username ?? user?.email?.split('@')[0] ?? 'Ricky';
 
@@ -245,8 +307,8 @@ export default function ProfileScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Typo variant="caption" style={styles.pbLabel}>PERSONAL BEST</Typo>
-                <Typo variant="bodyMedium" style={styles.pbTitle}>Career best round</Typo>
-                <Typo variant="caption" style={styles.pbSub}>-7 at Maple Hill DGC</Typo>
+                <Typo variant="bodyMedium" style={styles.pbTitle}>Career Best Round</Typo>
+                <Typo variant="caption" style={styles.pbSub}>-7 (47) at Maple Hill DGC</Typo>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Typo variant="display" style={styles.pbScoreVal}>-7</Typo>
@@ -265,21 +327,34 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-              {MOCK_RECENT.map((item, i) => (
-                <View key={i} style={styles.recentRoundMiniCard}>
+              {FULL_ROUNDS_HISTORY.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.recentRoundMiniCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setSelectedHistoryRound(item);
+                  }}
+                >
                   <Typo variant="bodyMedium" style={styles.recentMiniCourse} numberOfLines={1}>
                     {item.course}
                   </Typo>
                   <Typo variant="caption" style={styles.recentMiniDate}>{item.date}</Typo>
                   <View style={styles.recentMiniScoreRow}>
-                    <View style={[styles.miniDiffBadge, { backgroundColor: item.color === Colors.blue ? Colors.blueLight : item.color === Colors.red ? Colors.redLight : Colors.greenLight }]}>
-                      <Typo style={[styles.miniDiffText, { color: item.color }]}>{item.diff}</Typo>
+                    <View style={[styles.miniDiffBadge, { backgroundColor: item.diff.startsWith('-') ? Colors.blueLight : Colors.redLight }]}>
+                      <Typo style={[styles.miniDiffText, { color: item.diff.startsWith('-') ? Colors.blue : Colors.red }]}>{item.diff}</Typo>
                     </View>
                     <Typo variant="h3" style={styles.miniScoreVal}>{item.score}</Typo>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
+
+            {/* SCORE TREND MOUNTAIN CHART */}
+            <View style={{ marginTop: 8 }}>
+              <ScoreTrendMountainChart />
+            </View>
 
             {/* PERFORMANCE BREAKDOWN */}
             <View style={styles.sectionHeader}>
@@ -315,16 +390,25 @@ export default function ProfileScreen() {
 
             {/* MY FRIENDS LIST */}
             <View style={styles.cardSection}>
-              <Typo variant="label" style={styles.sectionLabel}>MY FRIENDS ({MOCK_FRIENDS.length})</Typo>
-              {MOCK_FRIENDS.map((f) => (
+              <Typo variant="label" style={styles.sectionLabel}>MY FRIENDS ({friendsList.length})</Typo>
+              {friendsList.map((f) => (
                 <View key={f.id} style={styles.friendRow}>
-                  <Ionicons name="person-circle-outline" size={32} color={Colors.primaryBlack} />
+                  <Ionicons name="person-circle-outline" size={34} color={Colors.primaryBlack} />
                   <View style={{ flex: 1 }}>
                     <Typo style={{ fontWeight: 'bold', fontSize: 14 }}>{f.name}</Typo>
                     <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>@{f.username} • ACED {f.handicap}</Typo>
                   </View>
                   <View style={[styles.statusDot, f.isLive ? styles.statusDotLive : styles.statusDotOnline]} />
                   <Typo style={styles.statusText}>{f.isLive ? 'In Round' : 'Online'}</Typo>
+                  <TouchableOpacity
+                    style={{ padding: 6, marginLeft: 6 }}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setFriendsList((prev) => prev.filter((item) => item.id !== f.id));
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={Colors.gray400} />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
@@ -435,24 +519,112 @@ export default function ProfileScreen() {
               <Ionicons name="search" size={18} color={Colors.gray400} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search username or email..."
+                placeholder="Enter friend username handle (e.g. @jakemiller)..."
                 placeholderTextColor={Colors.gray400}
-                value={friendSearchQuery}
-                onChangeText={setFriendSearchQuery}
+                value={newFriendHandle}
+                onChangeText={setNewFriendHandle}
               />
             </View>
             <Button
-              label="Send Friend Request"
+              label="+ Add Friend to ACED"
               variant="primary"
               size="md"
               fullWidth
-              onPress={() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                setAddFriendModalVisible(false);
-                setFriendSearchQuery('');
-              }}
+              onPress={handleAddFriend}
             />
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* 18-HOLE GOLF SCORECARD MODAL */}
+      <Modal
+        visible={selectedHistoryRound !== null}
+        animationType="slide"
+        onRequestClose={() => setSelectedHistoryRound(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          {selectedHistoryRound && (
+            <>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Typo variant="h2" style={{ fontWeight: 'bold' }}>{selectedHistoryRound.course}</Typo>
+                  <Typo variant="caption" style={{ color: Colors.secondaryText }}>
+                    {selectedHistoryRound.date} • Score: {selectedHistoryRound.diff} ({selectedHistoryRound.score} Throws)
+                  </Typo>
+                </View>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedHistoryRound(null)}>
+                  <Ionicons name="close" size={22} color={Colors.primaryBlack} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 16 }}>
+                {/* Round Summary Header Banner */}
+                <View style={styles.scorecardHeroBanner}>
+                  <View style={{ flex: 1 }}>
+                    <Typo style={{ color: Colors.white, fontSize: 12, fontWeight: 'bold', letterSpacing: 0.5 }}>
+                      ROUND SUMMARY
+                    </Typo>
+                    <Typo style={{ color: Colors.white, fontSize: 28, fontWeight: 'bold', marginTop: 2 }}>
+                      {selectedHistoryRound.diff} ({selectedHistoryRound.score})
+                    </Typo>
+                    <Typo style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: 12, marginTop: 2 }}>
+                      Par {selectedHistoryRound.par} • 18 Holes Completed
+                    </Typo>
+                  </View>
+
+                  <View style={{ gap: 4, alignItems: 'flex-end' }}>
+                    <View style={styles.summaryBadgeChip}><Typo style={styles.summaryBadgeText}>🦅 {selectedHistoryRound.eagles} Eagles</Typo></View>
+                    <View style={styles.summaryBadgeChip}><Typo style={styles.summaryBadgeText}>🐥 {selectedHistoryRound.birdies} Birdies</Typo></View>
+                    <View style={styles.summaryBadgeChip}><Typo style={styles.summaryBadgeText}>⚖️ {selectedHistoryRound.pars} Pars</Typo></View>
+                  </View>
+                </View>
+
+                {/* 18-Hole Grid Scorecard */}
+                <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8 }}>
+                  18-HOLE SCORECARD BREAKDOWN
+                </Typo>
+
+                <View style={styles.fullScorecardGridContainer}>
+                  {/* Front 9 */}
+                  <Typo style={{ fontWeight: 'bold', fontSize: 12, color: Colors.blue }}>FRONT 9</Typo>
+                  <View style={styles.scoreRowGrid}>
+                    {selectedHistoryRound.holeScores.slice(0, 9).map((num, idx) => {
+                      const par = selectedHistoryRound.holePars[idx];
+                      const diff = num - par;
+                      return (
+                        <View key={idx} style={styles.scoreGridBox}>
+                          <Typo style={{ fontSize: 9, color: Colors.secondaryText, fontWeight: 'bold' }}>H{idx + 1}</Typo>
+                          <Typo style={{ fontSize: 14, fontWeight: 'bold', color: diff < 0 ? Colors.blue : diff > 0 ? Colors.red : Colors.primaryBlack }}>
+                            {num}
+                          </Typo>
+                          <Typo style={{ fontSize: 8, color: Colors.secondaryText }}>P{par}</Typo>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Back 9 */}
+                  <Typo style={{ fontWeight: 'bold', fontSize: 12, color: Colors.blue, marginTop: 8 }}>BACK 9</Typo>
+                  <View style={styles.scoreRowGrid}>
+                    {selectedHistoryRound.holeScores.slice(9, 18).map((num, idx) => {
+                      const realHoleIdx = idx + 9;
+                      const par = selectedHistoryRound.holePars[realHoleIdx];
+                      const diff = num - par;
+                      return (
+                        <View key={idx} style={styles.scoreGridBox}>
+                          <Typo style={{ fontSize: 9, color: Colors.secondaryText, fontWeight: 'bold' }}>H{realHoleIdx + 1}</Typo>
+                          <Typo style={{ fontSize: 14, fontWeight: 'bold', color: diff < 0 ? Colors.blue : diff > 0 ? Colors.red : Colors.primaryBlack }}>
+                            {num}
+                          </Typo>
+                          <Typo style={{ fontSize: 8, color: Colors.secondaryText }}>P{par}</Typo>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+            </>
+          )}
         </SafeAreaView>
       </Modal>
 
@@ -462,7 +634,7 @@ export default function ProfileScreen() {
           <View style={styles.modalHeader}>
             <View>
               <Typo variant="h2" style={{ fontWeight: 'bold' }}>Round History</Typo>
-              <Typo variant="caption" style={{ color: Colors.secondaryText }}>All completed rounds ({MOCK_RECENT.length})</Typo>
+              <Typo variant="caption" style={{ color: Colors.secondaryText }}>All completed rounds ({FULL_ROUNDS_HISTORY.length})</Typo>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setIsAllRoundsModalVisible(false)}>
               <Ionicons name="close" size={22} color={Colors.primaryBlack} />
@@ -470,17 +642,25 @@ export default function ProfileScreen() {
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 10 }}>
-            {MOCK_RECENT.map((item, idx) => (
-              <View key={idx} style={styles.fullRoundCard}>
+            {FULL_ROUNDS_HISTORY.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.fullRoundCard}
+                activeOpacity={0.88}
+                onPress={() => {
+                  setIsAllRoundsModalVisible(false);
+                  setSelectedHistoryRound(item);
+                }}
+              >
                 <View style={{ flex: 1 }}>
                   <Typo style={{ fontWeight: 'bold', fontSize: 16 }}>{item.course}</Typo>
                   <Typo style={{ color: Colors.secondaryText, fontSize: 12 }}>{item.date} • Main Layout</Typo>
                 </View>
                 <View style={styles.fullRoundScoreBox}>
                   <Typo style={{ fontSize: 18, fontWeight: 'bold' }}>{item.score}</Typo>
-                  <Typo style={{ fontSize: 11, fontWeight: 'bold', color: item.color }}>({item.diff})</Typo>
+                  <Typo style={{ fontSize: 11, fontWeight: 'bold', color: item.diff.startsWith('-') ? Colors.blue : Colors.red }}>({item.diff})</Typo>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </SafeAreaView>
@@ -506,7 +686,7 @@ const SettingItem: React.FC<{ icon: string; label: string; value: string }> = ({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: 36 },
 
   header: {
     paddingHorizontal: Spacing.lg,
@@ -543,7 +723,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
   },
 
-  tabContent: { gap: Spacing.base },
+  tabContent: { gap: Spacing.base, paddingTop: Spacing.sm },
   cardSection: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
@@ -648,6 +828,46 @@ const styles = StyleSheet.create({
   shopPrice: { fontSize: Typography.size.base, fontFamily: Typography.fontFamily.bold, color: Colors.primaryBlack },
   buyBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.blue, alignItems: 'center', justifyContent: 'center' },
 
+  // Scorecard Modal Styles
+  scorecardHeroBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadows.md,
+  },
+  summaryBadgeChip: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  summaryBadgeText: { color: Colors.white, fontSize: 10, fontWeight: 'bold' },
+  fullScorecardGridContainer: {
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+  },
+  scoreRowGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  scoreGridBox: {
+    flex: 1,
+    height: 48,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   // Modal
   modal: { flex: 1, backgroundColor: Colors.white },
   modalHeader: {
@@ -655,7 +875,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: 52,
+    paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,

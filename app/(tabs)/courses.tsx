@@ -85,7 +85,7 @@ export default function CoursesScreen() {
 
     if (anchorLat !== null && anchorLng !== null) {
       const distMoved = Math.abs(region.latitude - anchorLat) + Math.abs(region.longitude - anchorLng);
-      if (distMoved > 0.02) {
+      if (distMoved > 0.005) {
         setShowSearchHere(true);
       }
     }
@@ -327,64 +327,6 @@ export default function CoursesScreen() {
           </View>
         </AnimatedFadeIn>
 
-        {/* Filter Pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'nearby' && styles.filterPillActive]}
-            onPress={() => setActiveFilter('nearby')}
-          >
-            <Ionicons
-              name="location"
-              size={14}
-              color={activeFilter === 'nearby' ? Colors.white : Colors.primaryBlack}
-            />
-            <Typo style={[styles.filterText, activeFilter === 'nearby' && styles.filterTextActive]}>
-              All Nearby
-            </Typo>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === '18holes' && styles.filterPillActive]}
-            onPress={() => setActiveFilter(activeFilter === '18holes' ? 'nearby' : '18holes')}
-          >
-            <Typo style={[styles.filterText, activeFilter === '18holes' && styles.filterTextActive]}>
-              18+ Holes
-            </Typo>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === '9holes' && styles.filterPillActive]}
-            onPress={() => setActiveFilter(activeFilter === '9holes' ? 'nearby' : '9holes')}
-          >
-            <Typo style={[styles.filterText, activeFilter === '9holes' && styles.filterTextActive]}>
-              9 Holes
-            </Typo>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'under5mi' && styles.filterPillActive]}
-            onPress={() => setActiveFilter(activeFilter === 'under5mi' ? 'nearby' : 'under5mi')}
-          >
-            <Typo style={[styles.filterText, activeFilter === 'under5mi' && styles.filterTextActive]}>
-              &lt; 5 Miles
-            </Typo>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'verified' && styles.filterPillActive]}
-            onPress={() => setActiveFilter(activeFilter === 'verified' ? 'nearby' : 'verified')}
-          >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={14}
-              color={activeFilter === 'verified' ? Colors.white : Colors.primaryBlack}
-            />
-            <Typo style={[styles.filterText, activeFilter === 'verified' && styles.filterTextActive]}>
-              Verified Layouts
-            </Typo>
-          </TouchableOpacity>
-        </ScrollView>
-
         {/* Nearby Courses Header */}
         <View style={styles.sectionHeader}>
           <Typo variant="label" style={styles.sectionTitle}>
@@ -440,7 +382,7 @@ export default function CoursesScreen() {
           onPress={() => Linking.openURL('https://discgolfapi.com')}
         >
           <Typo variant="caption" style={styles.attributionText}>
-            Course data supplied by DiscGolfAPI.
+            Course data supplied by OpenStreetMap (OSM) & DiscGolfAPI.
           </Typo>
         </TouchableOpacity>
 
@@ -453,7 +395,7 @@ export default function CoursesScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: 32 },
 
   attributionBox: {
     alignItems: 'center',
@@ -724,7 +666,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.base,
+    padding: Spacing.lg,
     marginBottom: Spacing.md,
     gap: Spacing.md,
     ...Shadows.sm,

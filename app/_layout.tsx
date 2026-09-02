@@ -150,15 +150,6 @@ export default function RootLayout() {
           }}
         />
         <Stack.Screen
-          name="round/summary"
-          options={{
-            headerShown: false,
-            animation: 'slide_from_bottom',
-            presentation: 'modal',
-            gestureEnabled: true,
-          }}
-        />
-        <Stack.Screen
           name="course/[id]"
           options={{
             headerShown: false,

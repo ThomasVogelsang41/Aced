@@ -7,26 +7,21 @@ import { Colors, Typography, Layout } from '../../constants/theme';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface TabIconProps {
-  name?: IconName;
-  focusedName?: IconName;
+  name: IconName;
+  focusedName: IconName;
   focused: boolean;
   label: string;
-  customIcon?: React.ReactNode;
 }
 
-const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label, customIcon }) => {
+const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label }) => {
   const color = focused ? Colors.tabActive : Colors.tabInactive;
   return (
     <View style={styles.tabItem}>
-      {customIcon ? (
-        customIcon
-      ) : (
-        <Ionicons
-          name={focused ? focusedName! : name!}
-          size={25}
-          color={color}
-        />
-      )}
+      <Ionicons
+        name={focused ? focusedName : name}
+        size={24}
+        color={color}
+      />
       <Text
         numberOfLines={1}
         allowFontScaling={false}
@@ -34,22 +29,6 @@ const TabIcon: React.FC<TabIconProps> = ({ name, focusedName, focused, label, cu
       >
         {label}
       </Text>
-    </View>
-  );
-};
-
-// Custom Disc Golf Backpack Icon (backpack with top disc pocket slot & disc)
-const DiscGolfBagIcon: React.FC<{ focused: boolean }> = ({ focused }) => {
-  const color = focused ? Colors.tabActive : Colors.tabInactive;
-  return (
-    <View style={styles.discBagContainer}>
-      {/* Disc peeking out top */}
-      <View style={[styles.discPeek, { borderColor: color }]} />
-      {/* Main Backpack Body */}
-      <View style={[styles.backpackBody, { borderColor: color }]}>
-        {/* Front Zip Pocket / Strap */}
-        <View style={[styles.frontPocket, { borderColor: color }]} />
-      </View>
     </View>
   );
 };
@@ -68,12 +47,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="home-outline"
-              focusedName="home"
-              focused={focused}
-              label="Home"
-            />
+            <TabIcon name="home-outline" focusedName="home" focused={focused} label="Home" />
           ),
         }}
       />
@@ -83,12 +57,7 @@ export default function TabsLayout() {
         name="courses"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="map-outline"
-              focusedName="map"
-              focused={focused}
-              label="Map"
-            />
+            <TabIcon name="map-outline" focusedName="map" focused={focused} label="Map" />
           ),
         }}
       />
@@ -98,26 +67,17 @@ export default function TabsLayout() {
         name="play"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="disc-outline"
-              focusedName="disc"
-              focused={focused}
-              label="Play"
-            />
+            <TabIcon name="disc-outline" focusedName="disc" focused={focused} label="Play" />
           ),
         }}
       />
 
-      {/* Slot 4: Bag (Disc Golf Backpack) */}
+      {/* Slot 4: Groups */}
       <Tabs.Screen
-        name="bag"
+        name="openplay"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon
-              focused={focused}
-              label="Bag"
-              customIcon={<DiscGolfBagIcon focused={focused} />}
-            />
+            <TabIcon name="people-outline" focusedName="people" focused={focused} label="Groups" />
           ),
         }}
       />
@@ -127,15 +87,13 @@ export default function TabsLayout() {
         name="profile"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon
-              name="person-outline"
-              focusedName="person"
-              focused={focused}
-              label="Me"
-            />
+            <TabIcon name="person-outline" focusedName="person" focused={focused} label="Me" />
           ),
         }}
       />
+
+      {/* Hidden screens — not shown in tab bar */}
+      <Tabs.Screen name="bag" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -162,40 +120,5 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     letterSpacing: 0,
     textAlign: 'center',
-  },
-
-  // Disc Golf Bag Icon Styles
-  discBagContainer: {
-    width: 25,
-    height: 25,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    position: 'relative',
-  },
-  discPeek: {
-    position: 'absolute',
-    top: 0,
-    width: 16,
-    height: 8,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 1.8,
-    borderBottomWidth: 0,
-  },
-  backpackBody: {
-    width: 20,
-    height: 17,
-    borderRadius: 4,
-    borderWidth: 1.8,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 2,
-    backgroundColor: Colors.white,
-  },
-  frontPocket: {
-    width: 14,
-    height: 7,
-    borderRadius: 2,
-    borderWidth: 1.2,
   },
 });

@@ -4,10 +4,11 @@ import type { TryDiscsDisc } from '../types/disc';
 const BASE_URL = 'https://api.trydiscs.com/v1';
 const API_KEY =
   (process.env.EXPO_PUBLIC_TRYDISCS_API_KEY as string) ||
-  (Constants.expoConfig?.extra?.tryDiscsApiKey as string);
+  (Constants.expoConfig?.extra?.tryDiscsApiKey as string) ||
+  'td_live_73e64d4d965158abc90a8ea2';
 
 const headers = {
-  'Authorization': `Bearer ${API_KEY}`,
+  'X-API-Key': API_KEY,
   'Content-Type': 'application/json',
 };
 
@@ -20,21 +21,32 @@ export async function searchDiscs(params: {
   limit?: number;
   offset?: number;
 }): Promise<TryDiscsDisc[]> {
-  const url = new URL(`${BASE_URL}/discs`);
-  if (params.query) url.searchParams.set('search', params.query);
-  if (params.brand) url.searchParams.set('brand', params.brand);
-  if (params.category) url.searchParams.set('category', params.category);
-  if (params.minSpeed !== undefined) url.searchParams.set('min_speed', String(params.minSpeed));
-  if (params.maxSpeed !== undefined) url.searchParams.set('max_speed', String(params.maxSpeed));
-  if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit));
-  if (params.offset !== undefined) url.searchParams.set('offset', String(params.offset));
-  // Exclude discontinued by default
-  url.searchParams.set('discontinued', 'false');
+  try {
+    const url = new URL(`${BASE_URL}/discs`);
+    if (params.query) {
+      url.searchParams.set('q', params.query);
+    }
+    if (params.brand) url.searchParams.set('brand', params.brand);
+    if (params.category) url.searchParams.set('category', params.category);
+    if (params.minSpeed !== undefined) url.searchParams.set('min_speed', String(params.minSpeed));
+    if (params.maxSpeed !== undefined) url.searchParams.set('max_speed', String(params.maxSpeed));
+    if (params.limit !== undefined) url.searchParams.set('limit', String(params.limit ?? 20));
 
-  const res = await fetch(url.toString(), { headers });
-  if (!res.ok) throw new Error(`TryDiscs API error: ${res.status}`);
-  const data = await res.json();
-  return data.discs ?? data ?? [];
+    const res = await fetch(url.toString(), { headers });
+    if (!res.ok) {
+      console.warn(`TryDiscs API status ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.discs)) return data.discs;
+    if (Array.isArray(data.data)) return data.data;
+    if (data.result && Array.isArray(data.result)) return data.result;
+    return [];
+  } catch (err) {
+    console.warn('TryDiscs API search error:', err);
+    return [];
+  }
 }
 
 export async function getDisc(brand: string, disc: string): Promise<TryDiscsDisc | null> {
@@ -60,7 +72,12 @@ export async function getDiscsByBrand(brand: string): Promise<TryDiscsDisc[]> {
   return data.discs ?? data ?? [];
 }
 
-// Attribution — must be shown wherever TryDiscs data appears
+// Generate direct link to Try Discs store search for a mold
+export function getTryDiscsBuyUrl(discName: string): string {
+  return `https://trydiscs.com/buy?q=${encodeURIComponent(discName)}`;
+}
+
+// Attribution — required by Try Discs API agreement
 export const TRYDISCS_ATTRIBUTION = {
   text: 'Disc data by Try Discs',
   url: 'https://trydiscs.com',

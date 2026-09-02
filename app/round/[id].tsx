@@ -87,14 +87,172 @@ function generateCurvedFlightPath(
   return points;
 }
 
-const GAME_RULES: Record<string, string> = {
-  stroke: 'Stroke Play: Every stroke counts. Lowest total score wins.',
-  skins: 'Skins Play: Each hole is worth 1 skin. Lowest score on a hole wins the skin. Tied holes carry over!',
-  match: 'Match Play: Play against an opponent hole-by-hole. Win a hole to go 1-UP. Most holes won wins.',
-  best_shot: 'Teams (Best Shot): Teammates both throw from tee, then select the best lie to throw next shots.',
-  disc_roulette: 'Disc Roulette: A random disc from your bag is assigned to be thrown on each hole!',
-  birdie_battle: 'Birdie Battle: Earn points for Birdies, Eagles & Aces. Highest points total wins.',
-  one_disc: 'One Disc Challenge: Each player chooses a single disc to play the entire 18-hole round!',
+const GAME_MODE_PREMIUM_DETAILS: Record<
+  string,
+  {
+    title: string;
+    badge: string;
+    tagline: string;
+    icon: string;
+    objective: string;
+    scoringSystem: string;
+    tieBreaker: string;
+    proTip: string;
+    formatColor: string;
+  }
+> = {
+  stroke: {
+    title: 'Stroke Play (Standard)',
+    badge: 'CLASSIC ACED FORMAT',
+    tagline: 'Traditional disc golf layout competition. Lowest total score wins.',
+    icon: 'golf-outline',
+    objective: 'Complete all 18 holes using the fewest total throws possible.',
+    scoringSystem: 'Each throw adds +1 stroke. Equal total score results in a playoff or split win.',
+    tieBreaker: 'Sudden death playoff starting from Hole 1 or lowest raw score on back 9.',
+    proTip: 'Eliminate double bogeys. Par is always your best friend on long technical fairways.',
+    formatColor: '#2563EB',
+  },
+  skins: {
+    title: 'Skins Challenge',
+    badge: 'HOLE-BY-HOLE BATTLE',
+    tagline: 'Outscore your group on a single hole to claim the Skin. Ties carry over!',
+    icon: 'flame-outline',
+    objective: 'Win individual holes cleanly. If two players tie for lowest score, the skin carries over to the next hole!',
+    scoringSystem: 'Each hole is worth 1 Skin. Carryovers accumulate value until a player wins a hole outright.',
+    tieBreaker: 'Final carryover skins on Hole 18 trigger a CTP (Closest to Pin) throw-off.',
+    proTip: 'Play aggressively when the skin pot carries over to 3+ skins!',
+    formatColor: '#D97706',
+  },
+  match: {
+    title: 'Match Play (Head to Head)',
+    badge: '1-ON-1 DUEL',
+    tagline: 'Win more individual holes than your opponent. Track 1-UP, 2-UP, or All Square.',
+    icon: 'trophy-outline',
+    objective: 'Beat your opponent on each hole to take control of the match.',
+    scoringSystem: 'Win a hole = +1 UP. Tie a hole = Halved (No change). Match ends when lead exceeds remaining holes.',
+    tieBreaker: 'Extra holes played from Hole 1 under sudden death if All Square after 18.',
+    proTip: 'Watch your opponent’s lie before selecting your disc line.',
+    formatColor: '#10B981',
+  },
+  best_shot: {
+    title: 'Teams (Best Shot Doubles)',
+    badge: 'TEAMWORK FORMAT',
+    tagline: 'Teammates throw from the tee and choose the best lie for every shot.',
+    icon: 'people-outline',
+    objective: 'Pair up with a teammate and maximize your team scoring power.',
+    scoringSystem: 'Both players throw; the team chooses the best result and both throw their next shot from that spot.',
+    tieBreaker: 'Team with the most total eagles and birdies wins tiebreakers.',
+    proTip: 'Have the safer player throw first from the tee so the anchor can go for maximum distance!',
+    formatColor: '#8B5CF6',
+  },
+  disc_roulette: {
+    title: 'Disc Roulette',
+    badge: 'BAG CHAOS CHALLENGE',
+    tagline: 'A random disc from your active My Bag is auto-assigned on each hole!',
+    icon: 'dice-outline',
+    objective: 'Execute shots with whatever disc mold the ACED Roulette Wheel assigns you on the tee pad.',
+    scoringSystem: 'Standard stroke play scoring applies, but disc selection is strictly restricted by ACED Roulette.',
+    tieBreaker: 'Players select 1 wildcard disc for a final CTP challenge on tie.',
+    proTip: 'Adapt your throw angle (hyzer/anhyzer) to compensate for overstable or understable assigned discs.',
+    formatColor: '#EC4899',
+  },
+  birdie_battle: {
+    title: 'Birdie Battle',
+    badge: 'AGGRESSIVE POINTS',
+    tagline: 'Earn big points for Birdies, Eagles, and Aces. Negative points for double bogeys!',
+    icon: 'target-outline',
+    objective: 'Accumulate maximum bonus points by attacking the basket.',
+    scoringSystem: 'Ace = +5 pts | Eagle = +3 pts | Birdie = +2 pts | Par = +1 pt | Bogey = 0 pts | Double+ = -1 pt',
+    tieBreaker: 'Player with the highest single-hole point score wins ties.',
+    proTip: 'Go for green on par 4s — the reward for an Eagle (+3) far outweighs a conservative layup.',
+    formatColor: '#059669',
+  },
+  one_disc: {
+    title: 'One Disc Challenge',
+    badge: 'SINGLE MOLD MASTERY',
+    tagline: 'Select 1 disc mold from your bag for the entire 18-hole round!',
+    icon: 'disc-outline',
+    objective: 'Play the entire 18 holes using only 1 designated disc mold.',
+    scoringSystem: 'Standard stroke play scoring. Throws made with unassigned discs incur a +2 stroke penalty.',
+    tieBreaker: 'Player with the lowest score on the hardest rated hole wins ties.',
+    proTip: 'Choose a versatile fairway driver or neutral putter/midrange that handles both drives & putts.',
+    formatColor: '#6366F1',
+  },
+};
+
+const GolfScorecardStrip: React.FC<{
+  currentHoleIndex: number;
+  scores: Array<{ holeNumber: number; strokes: number }>;
+  onSelectHole: (idx: number) => void;
+}> = ({ currentHoleIndex, scores, onSelectHole }) => {
+  const players = [
+    { name: 'Thomas' },
+    { name: 'Jake' },
+    { name: 'Mike' },
+  ];
+
+  return (
+    <View style={styles.golfScorecardContainer}>
+      <Typo variant="caption" style={styles.scorecardTitleText}>LIVE GOLF SCORECARD</Typo>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.golfScorecardGrid}>
+        {/* Player Name Column */}
+        <View style={styles.scorecardColHeader}>
+          <View style={styles.scorecardCellHeaderBox}>
+            <Typo style={styles.scorecardCellHeaderText}>HOLE</Typo>
+          </View>
+          {players.map((p, i) => (
+            <View key={i} style={styles.scorecardCellPlayerBox}>
+              <Typo style={styles.scorecardPlayerName} numberOfLines={1}>{p.name}</Typo>
+            </View>
+          ))}
+        </View>
+
+        {/* 18 Hole Columns */}
+        {Array.from({ length: 18 }).map((_, idx) => {
+          const hNum = idx + 1;
+          const isCurrent = idx === currentHoleIndex;
+          const userStrokes = scores[idx]?.strokes ?? 0;
+
+          // Simulated group scores for demo parity
+          const jakeStrokes = userStrokes > 0 ? (userStrokes === 3 ? 3 : Math.max(2, userStrokes - 1)) : 0;
+          const mikeStrokes = userStrokes > 0 ? (userStrokes === 3 ? 4 : Math.max(3, userStrokes + 1)) : 0;
+
+          return (
+            <TouchableOpacity
+              key={hNum}
+              style={[styles.scorecardHoleCol, isCurrent && styles.scorecardHoleColActive]}
+              onPress={() => onSelectHole(idx)}
+            >
+              <View style={[styles.scorecardHoleHeaderBox, isCurrent && styles.scorecardHoleHeaderBoxActive]}>
+                <Typo style={[styles.scorecardHoleNum, isCurrent && styles.scorecardHoleNumActive]}>{hNum}</Typo>
+              </View>
+
+              {/* Thomas Score */}
+              <View style={styles.scorecardScoreBox}>
+                <Typo style={[styles.scorecardScoreCell, userStrokes > 0 && styles.scorecardRecordedUser]}>
+                  {userStrokes > 0 ? userStrokes : '-'}
+                </Typo>
+              </View>
+
+              {/* Jake Score */}
+              <View style={styles.scorecardScoreBox}>
+                <Typo style={[styles.scorecardScoreCell, jakeStrokes > 0 && styles.scorecardRecordedP2]}>
+                  {jakeStrokes > 0 ? jakeStrokes : '-'}
+                </Typo>
+              </View>
+
+              {/* Mike Score */}
+              <View style={styles.scorecardScoreBox}>
+                <Typo style={[styles.scorecardScoreCell, mikeStrokes > 0 && styles.scorecardRecordedP3]}>
+                  {mikeStrokes > 0 ? mikeStrokes : '-'}
+                </Typo>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 };
 
 export default function ActiveRoundScreen() {
@@ -130,6 +288,7 @@ export default function ActiveRoundScreen() {
   const [is3DMode, setIs3DMode] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isScoreInputModalOpen, setIsScoreInputModalOpen] = useState(false);
+  const [isScorecardModalOpen, setIsScorecardModalOpen] = useState(false);
 
   const [currentStrokes, setCurrentStrokes] = useState<number>(
     currentHoleScore?.strokes && currentHoleScore.strokes > 0 ? currentHoleScore.strokes : currentHole.par
@@ -141,7 +300,7 @@ export default function ActiveRoundScreen() {
   }, [currentHoleIndex, activeRound]);
 
   const currentGameType = activeRound?.round?.gameType ?? 'stroke';
-  const gameRulesText = GAME_RULES[currentGameType] ?? GAME_RULES.stroke;
+  const gameDetails = GAME_MODE_PREMIUM_DETAILS[currentGameType] ?? GAME_MODE_PREMIUM_DETAILS.stroke;
 
   // Anchor Basket Pin in exact same spot on screen (just below top header bar) for every hole
   useEffect(() => {
@@ -321,7 +480,7 @@ export default function ActiveRoundScreen() {
           style: 'default',
           onPress: () => {
             finishRound();
-            router.replace('/round/summary');
+            router.replace('/(tabs)');
           },
         },
       ]
@@ -436,16 +595,8 @@ export default function ActiveRoundScreen() {
             </Typo>
           </View>
 
-          {/* Group Leaderboard Button */}
-          <TouchableOpacity
-            style={styles.headerCircleBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setIsLeaderboardOpen(true);
-            }}
-          >
-            <Ionicons name="podium-outline" size={20} color={Colors.primaryBlack} />
-          </TouchableOpacity>
+          {/* Balanced spacer view replacing white circle button */}
+          <View style={{ width: 44, height: 44 }} />
         </View>
       </SafeAreaView>
 
@@ -476,16 +627,6 @@ export default function ActiveRoundScreen() {
 
         {/* Right Map Action Buttons */}
         <View style={styles.rightActionStack}>
-          {/* 3D Perspective Pitch Cube Button */}
-          <TouchableOpacity
-            style={[styles.blueCircleAction, is3DMode && { backgroundColor: Colors.primaryBlack }]}
-            onPress={toggle3DPitch}
-            activeOpacity={0.8}
-          >
-            <Ionicons name={is3DMode ? "cube" : "cube-outline"} size={20} color={Colors.white} />
-            <Typo style={styles.actionBtnLabel}>{is3DMode ? '3D ON' : '3D'}</Typo>
-          </TouchableOpacity>
-
           {/* Locate Me Button */}
           <TouchableOpacity
             style={styles.blueCircleAction}
@@ -503,60 +644,118 @@ export default function ActiveRoundScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="locate" size={20} color={Colors.white} />
-            <Typo style={styles.actionBtnLabel}>MY LOC</Typo>
+            <Typo style={styles.actionBtnLabel}>GPS</Typo>
+          </TouchableOpacity>
+
+          {/* Game Rules & Info Floating Side Button */}
+          <TouchableOpacity
+            style={[styles.blueCircleAction, { backgroundColor: Colors.primaryBlack }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setIsLeaderboardOpen(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="book-outline" size={18} color={Colors.white} />
+            <Typo style={styles.actionBtnLabel}>RULES</Typo>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Simplified Two Large Square Buttons */}
-      <View style={styles.twoSquareBar}>
-        {/* Button 1: Scorecard & Rules */}
+      {/* Dual Bottom Control Bar: White Scorecard Button on Left & Black Input Score Button on Right */}
+      <View style={styles.dualBottomBar}>
+        {/* Left White Button: Scorecard */}
         <TouchableOpacity
-          style={styles.squareBtn}
+          style={styles.whiteScorecardBtn}
           activeOpacity={0.88}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            setIsLeaderboardOpen(true);
+            setIsScorecardModalOpen(true);
           }}
         >
-          <Ionicons name="clipboard-outline" size={26} color={Colors.primaryBlack} />
-          <Typo style={styles.squareBtnTitle}>Scorecard & Rules</Typo>
-          <Typo style={styles.squareBtnSub}>View standings & rules</Typo>
+          <Ionicons name="list-outline" size={20} color={Colors.primaryBlack} />
+          <Typo style={styles.whiteScorecardBtnText}>Scorecard</Typo>
         </TouchableOpacity>
 
-        {/* Button 2: Input Score & Next */}
+        {/* Right Black Button: Input Score */}
         <TouchableOpacity
-          style={[styles.squareBtn, styles.squareBtnPrimary]}
+          style={styles.blackInputScoreBtn}
           activeOpacity={0.88}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             setIsScoreInputModalOpen(true);
           }}
         >
-          <Ionicons name="add-circle" size={26} color={Colors.white} />
-          <Typo style={styles.squareBtnTitlePrimary}>Input Score</Typo>
-          <Typo style={styles.squareBtnSubPrimary}>
-            Hole {currentHoleIndex + 1} • Par {currentHole.par}
-          </Typo>
+          <Ionicons name="add-circle" size={20} color={Colors.white} />
+          <Typo style={styles.blackInputScoreBtnText}>Input Score</Typo>
         </TouchableOpacity>
       </View>
 
-      {/* INPUT SCORE MODAL */}
-      <Modal visible={isScoreInputModalOpen} animationType="slide" onRequestClose={() => setIsScoreInputModalOpen(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
-          <View style={styles.modalHeaderDown}>
-            <View>
-              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Input Score — Hole {currentHoleIndex + 1}</Typo>
-              <Typo variant="caption" style={{ color: Colors.secondaryText }}>
-                {course?.name} • Par {currentHole.par} • {currentHole.distanceFt ?? 310} FT
-              </Typo>
+      {/* INPUT SCORE BOTTOM SHEET DRAWER */}
+      <Modal
+        visible={isScoreInputModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsScoreInputModalOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.bottomSheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setIsScoreInputModalOpen(false)}
+        >
+          <TouchableOpacity style={styles.bottomSheetCard} activeOpacity={1}>
+            <View style={styles.bottomSheetHeader}>
+              <View>
+                <Typo variant="h3" style={{ fontWeight: 'bold' }}>Input Score — Hole {currentHoleIndex + 1}</Typo>
+                <Typo variant="caption" style={{ color: Colors.secondaryText }}>
+                  Par {currentHole.par} • {currentHole.distanceFt ?? 310} FT
+                </Typo>
+              </View>
+              <TouchableOpacity style={styles.closeBtnSmall} onPress={() => setIsScoreInputModalOpen(false)}>
+                <Ionicons name="close" size={20} color={Colors.primaryBlack} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.headerCircleBtn} onPress={() => setIsScoreInputModalOpen(false)}>
-              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
-            </TouchableOpacity>
-          </View>
 
-          <View style={{ padding: Spacing.lg, flex: 1, gap: 20 }}>
+            {/* Easy Prev / Next Hole Navigation Bar */}
+            <View style={styles.holeNavRow}>
+              <TouchableOpacity
+                style={[styles.holeNavBtn, currentHoleIndex === 0 && styles.holeNavBtnDisabled]}
+                disabled={currentHoleIndex === 0}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  prevHole();
+                }}
+              >
+                <Ionicons name="chevron-back" size={16} color={currentHoleIndex === 0 ? Colors.gray400 : Colors.primaryBlack} />
+                <Typo style={[styles.holeNavBtnText, currentHoleIndex === 0 && { color: Colors.gray400 }]}>
+                  {currentHoleIndex > 0 ? `Prev (Hole ${currentHoleIndex})` : 'Hole 1'}
+                </Typo>
+              </TouchableOpacity>
+
+              <Typo style={styles.holeNavCurrentText}>Hole {currentHoleIndex + 1} of {holeCount}</Typo>
+
+              <TouchableOpacity
+                style={[styles.holeNavBtn, currentHoleIndex === holeCount - 1 && styles.holeNavBtnDisabled]}
+                disabled={currentHoleIndex === holeCount - 1}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  nextHole();
+                }}
+              >
+                <Typo style={[styles.holeNavBtnText, currentHoleIndex === holeCount - 1 && { color: Colors.gray400 }]}>
+                  {currentHoleIndex < holeCount - 1 ? `Next (Hole ${currentHoleIndex + 2})` : 'Finish'}
+                </Typo>
+                <Ionicons name="chevron-forward" size={16} color={currentHoleIndex === holeCount - 1 ? Colors.gray400 : Colors.primaryBlack} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Live Golf Scorecard Strip (You + Group Members) */}
+            <GolfScorecardStrip
+              currentHoleIndex={currentHoleIndex}
+              scores={activeRound?.round?.scores ?? []}
+              onSelectHole={(idx) => goToHole(idx)}
+            />
+
             {/* Tactile Stroke Counter Buttons */}
             <View style={styles.strokeSection}>
               <Typo variant="caption" style={styles.strokeSectionTitle}>SELECT STROKES</Typo>
@@ -596,43 +795,31 @@ export default function ActiveRoundScreen() {
               </View>
             </View>
 
-            {/* Navigation & Confirm Button */}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 'auto' }}>
-              {currentHoleIndex > 0 && (
-                <TouchableOpacity
-                  style={styles.modalPrevBtn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    prevHole();
-                  }}
-                >
-                  <Ionicons name="arrow-back" size={20} color={Colors.primaryBlack} />
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={{ flex: 1, backgroundColor: Colors.primaryBlack, borderRadius: BorderRadius.xl, height: 50, alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                  handleRecordScoreAndAdvance(currentStrokes);
-                  setIsScoreInputModalOpen(false);
-                }}
-              >
-                <Typo style={{ color: Colors.white, fontWeight: 'bold', fontSize: 16 }}>
-                  {currentHoleIndex < holeCount - 1 ? `Save & Go to Hole ${currentHoleIndex + 2} →` : 'Save & Finish Round'}
-                </Typo>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
+            {/* Primary Save Action Button */}
+            <TouchableOpacity
+              style={styles.bottomSheetSaveBtn}
+              activeOpacity={0.88}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                handleRecordScoreAndAdvance(currentStrokes);
+                setIsScoreInputModalOpen(false);
+              }}
+            >
+              <Typo style={styles.bottomSheetSaveBtnText}>
+                {currentHoleIndex < holeCount - 1 ? `Save & Advance to Hole ${currentHoleIndex + 2} →` : 'Save & Finish Round'}
+              </Typo>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
-      {/* SCORECARD & RULES MODAL */}
+      {/* GAME RULES & LIVE STANDINGS MODAL */}
       <Modal visible={isLeaderboardOpen} animationType="slide" onRequestClose={() => setIsLeaderboardOpen(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          {/* Header */}
           <View style={styles.modalHeaderDown}>
             <View>
-              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Scorecard & Game Rules</Typo>
+              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Game Rules & Standings</Typo>
               <Typo variant="caption" style={{ color: Colors.secondaryText }}>
                 {course?.name} • Hole {currentHoleIndex + 1} of {holeCount}
               </Typo>
@@ -643,39 +830,134 @@ export default function ActiveRoundScreen() {
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg, gap: 16 }}>
-            {/* Game Rules Card */}
-            <View style={styles.gameRulesCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="book-outline" size={20} color={Colors.blue} />
-                <Typo style={{ fontWeight: 'bold', fontSize: 15 }}>{currentGameType.toUpperCase()} GAME RULES</Typo>
+            {/* Hero Format Card */}
+            <View style={[styles.heroFormatCard, { backgroundColor: gameDetails.formatColor }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={styles.heroFormatIconCircle}>
+                  <Ionicons name={gameDetails.icon as any} size={24} color={Colors.white} />
+                </View>
+                <View style={styles.heroFormatBadgeTag}>
+                  <Typo style={styles.heroFormatBadgeText}>{gameDetails.badge}</Typo>
+                </View>
               </View>
-              <Typo style={{ color: Colors.secondaryText, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-                {gameRulesText}
+
+              <Typo style={styles.heroFormatTitle}>{gameDetails.title}</Typo>
+              <Typo style={styles.heroFormatTagline}>{gameDetails.tagline}</Typo>
+            </View>
+
+            {/* Broadcast Rules Breakdown Grid */}
+            <View style={styles.rulesBreakdownContainer}>
+              <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8, marginBottom: 4 }}>
+                OFFICIAL FORMAT RULEBOOK
+              </Typo>
+
+              {/* Rule 1: Objective */}
+              <View style={styles.ruleCardItem}>
+                <View style={styles.ruleIconBox}>
+                  <Ionicons name="flag-outline" size={18} color={gameDetails.formatColor} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Typo style={styles.ruleItemTitle}>OBJECTIVE</Typo>
+                  <Typo style={styles.ruleItemBody}>{gameDetails.objective}</Typo>
+                </View>
+              </View>
+
+              {/* Rule 2: Scoring System */}
+              <View style={styles.ruleCardItem}>
+                <View style={styles.ruleIconBox}>
+                  <Ionicons name="calculator-outline" size={18} color={gameDetails.formatColor} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Typo style={styles.ruleItemTitle}>SCORING SYSTEM</Typo>
+                  <Typo style={styles.ruleItemBody}>{gameDetails.scoringSystem}</Typo>
+                </View>
+              </View>
+
+              {/* Rule 3: Tie-Breaker */}
+              <View style={styles.ruleCardItem}>
+                <View style={styles.ruleIconBox}>
+                  <Ionicons name="repeat-outline" size={18} color={gameDetails.formatColor} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Typo style={styles.ruleItemTitle}>TIE-BREAKER RULE</Typo>
+                  <Typo style={styles.ruleItemBody}>{gameDetails.tieBreaker}</Typo>
+                </View>
+              </View>
+
+              {/* Rule 4: Smart Caddie Pro Tip */}
+              <View style={styles.proTipCardItem}>
+                <Ionicons name="sparkles" size={18} color="#D97706" />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Typo style={{ fontWeight: 'bold', fontSize: 11, color: '#92400E', letterSpacing: 0.5 }}>
+                    SMART CADDIE PRO TIP
+                  </Typo>
+                  <Typo style={{ fontSize: 12, color: '#78350F', lineHeight: 17 }}>
+                    {gameDetails.proTip}
+                  </Typo>
+                </View>
+              </View>
+            </View>
+
+            {/* Live Standings Section */}
+            <View style={styles.standingsSection}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8 }}>
+                  LIVE GROUP STANDINGS
+                </Typo>
+                <Typo style={{ fontSize: 11, color: Colors.blue, fontWeight: 'bold' }}>
+                  {gameSummary.headline}
+                </Typo>
+              </View>
+
+              {gameSummary.details.map((player, idx) => (
+                <View key={idx} style={styles.standingsRowCard}>
+                  <Typo style={styles.standingsRankBadge}>
+                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
+                  </Typo>
+                  <View style={{ flex: 1 }}>
+                    <Typo style={{ fontWeight: 'bold', fontSize: 15 }}>{player.playerName}</Typo>
+                    <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>
+                      {idx === 0 ? '1st Place' : idx === 1 ? '2nd Place' : '3rd Place'} • Group Competitor
+                    </Typo>
+                  </View>
+                  <View style={[styles.standingsScorePill, { backgroundColor: gameDetails.formatColor }]}>
+                    <Typo style={styles.standingsScoreText}>{player.valueText}</Typo>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* LIVE 18-HOLE SCORECARD MODAL */}
+      <Modal
+        visible={isScorecardModalOpen}
+        animationType="slide"
+        onRequestClose={() => setIsScorecardModalOpen(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }} edges={['top']}>
+          <View style={styles.modalHeaderDown}>
+            <View>
+              <Typo variant="h2" style={{ fontWeight: 'bold' }}>Round Scorecard</Typo>
+              <Typo variant="caption" style={{ color: Colors.secondaryText }}>
+                {course?.name ?? 'Disc Golf Course'} • Live Hole {currentHoleIndex + 1}
               </Typo>
             </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setIsScorecardModalOpen(false)}>
+              <Ionicons name="close" size={22} color={Colors.primaryBlack} />
+            </TouchableOpacity>
+          </View>
 
-            {/* Game Status Headline Banner */}
-            <View style={styles.gameStatusBanner}>
-              <Typo style={styles.gameStatusHeadline}>{gameSummary.headline}</Typo>
-              <Typo style={styles.gameStatusSubline}>{gameSummary.subline}</Typo>
-            </View>
-
-            <Typo variant="label" style={{ color: Colors.secondaryText, letterSpacing: 0.8, marginTop: 4 }}>
-              LIVE GROUP STANDINGS
-            </Typo>
-
-            {gameSummary.details.map((player, idx) => (
-              <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, gap: 10 }}>
-                <Typo style={{ fontWeight: 'bold', fontSize: 16, width: 20, textAlign: 'center' }}>{idx + 1}</Typo>
-                <View style={{ flex: 1 }}>
-                  <Typo style={{ fontWeight: 'bold', fontSize: 15 }}>{player.playerName}</Typo>
-                  <Typo style={{ color: Colors.secondaryText, fontSize: 11 }}>Playing with group</Typo>
-                </View>
-                <View style={{ backgroundColor: Colors.blueLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.full }}>
-                  <Typo style={{ color: Colors.blue, fontWeight: 'bold', fontSize: 12 }}>{player.valueText}</Typo>
-                </View>
-              </View>
-            ))}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: Spacing.lg }}>
+            <GolfScorecardStrip
+              currentHoleIndex={currentHoleIndex}
+              scores={activeRound?.round?.scores ?? []}
+              onSelectHole={(idx) => {
+                goToHole(idx);
+                setIsScorecardModalOpen(false);
+              }}
+            />
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -727,8 +1009,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    marginTop: 34,
+    paddingTop: 4,
+    marginTop: 0,
   },
   headerCircleBtn: {
     width: 44,
@@ -754,7 +1036,7 @@ const styles = StyleSheet.create({
   // Left & Right Controls
   overlayControlsRow: {
     position: 'absolute',
-    top: 185,
+    top: 340,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -881,28 +1163,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  squareBtn: {
+  dualBottomBar: {
+    position: 'absolute',
+    bottom: 24,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  whiteScorecardBtn: {
     flex: 1,
-    height: 90,
+    height: 56,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
     ...Shadows.md,
   },
-  squareBtnPrimary: {
-    backgroundColor: Colors.primaryBlack,
-    borderColor: Colors.primaryBlack,
+  whiteScorecardBtnText: {
+    fontWeight: 'bold',
+    fontSize: 15,
+    color: Colors.primaryBlack,
   },
-  squareBtnTitle: { fontWeight: 'bold', fontSize: 14, color: Colors.primaryBlack },
-  squareBtnTitlePrimary: { fontWeight: 'bold', fontSize: 14, color: Colors.white },
-  squareBtnSub: { fontSize: 10, color: Colors.secondaryText },
-  squareBtnSubPrimary: { fontSize: 10, color: 'rgba(255, 255, 255, 0.8)' },
+  blackInputScoreBtn: {
+    flex: 1.2,
+    height: 56,
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    ...Shadows.md,
+  },
+  blackInputScoreBtnText: {
+    fontWeight: 'bold',
+    fontSize: 15,
+    color: Colors.white,
+  },
 
   // Modal styles
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalHeaderDown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -920,6 +1232,122 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  // Premium Hero Format Card
+  heroFormatCard: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    gap: 8,
+    ...Shadows.md,
+  },
+  heroFormatIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroFormatBadgeTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  heroFormatBadgeText: {
+    color: Colors.white,
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.8,
+  },
+  heroFormatTitle: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  heroFormatTagline: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  // Rules Breakdown Grid
+  rulesBreakdownContainer: {
+    gap: 10,
+  },
+  ruleCardItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+    ...Shadows.sm,
+  },
+  ruleIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ruleItemTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: Colors.secondaryText,
+    letterSpacing: 0.8,
+  },
+  ruleItemBody: {
+    fontSize: 13,
+    color: Colors.primaryBlack,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  proTipCardItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    gap: 10,
+  },
+
+  // Live Standings
+  standingsSection: {
+    gap: 8,
+    marginTop: 4,
+  },
+  standingsRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+    ...Shadows.sm,
+  },
+  standingsRankBadge: {
+    fontSize: 20,
+    width: 28,
+    textAlign: 'center',
+  },
+  standingsScorePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  standingsScoreText: {
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
   modalPrevBtn: {
     width: 50,
     height: 50,
@@ -930,4 +1358,100 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+
+  // Bottom Sheet Drawer Styles for Input Score
+  bottomSheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetCard: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl + 12,
+    gap: 12,
+    maxHeight: '82%',
+    ...Shadows.md,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeBtnSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.backgroundSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  holeNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  holeNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 4,
+  },
+  holeNavBtnDisabled: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+  },
+  holeNavBtnText: { fontSize: 11, fontWeight: 'bold', color: Colors.primaryBlack },
+  holeNavCurrentText: { fontSize: 12, fontWeight: 'bold', color: Colors.primaryBlack },
+
+  // Live Golf Scorecard Strip
+  golfScorecardContainer: {
+    backgroundColor: Colors.backgroundSoft,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 4,
+  },
+  scorecardTitleText: { fontSize: 9, fontWeight: 'bold', color: Colors.secondaryText, letterSpacing: 0.8 },
+  golfScorecardGrid: { flexDirection: 'row', gap: 4 },
+  scorecardColHeader: { width: 56, gap: 2 },
+  scorecardCellHeaderBox: { height: 22, justifyContent: 'center' },
+  scorecardCellHeaderText: { fontSize: 8, fontWeight: 'bold', color: Colors.secondaryText },
+  scorecardCellPlayerBox: { height: 22, justifyContent: 'center' },
+  scorecardPlayerName: { fontSize: 10, fontWeight: 'bold', color: Colors.primaryBlack },
+  scorecardHoleCol: { width: 28, alignItems: 'center', gap: 2, borderRadius: 4 },
+  scorecardHoleColActive: { backgroundColor: '#E0F2FE', borderWidth: 1, borderColor: Colors.blue },
+  scorecardHoleHeaderBox: { height: 22, width: '100%', alignItems: 'center', justifyContent: 'center', borderRadius: 3, backgroundColor: Colors.white },
+  scorecardHoleHeaderBoxActive: { backgroundColor: Colors.blue },
+  scorecardHoleNum: { fontSize: 10, fontWeight: 'bold', color: Colors.primaryBlack },
+  scorecardHoleNumActive: { color: Colors.white },
+  scorecardScoreBox: { height: 22, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  scorecardScoreCell: { fontSize: 11, fontWeight: 'bold', color: Colors.secondaryText },
+  scorecardRecordedUser: { color: Colors.blue, fontWeight: 'bold' },
+  scorecardRecordedP2: { color: Colors.primaryBlack, fontWeight: 'bold' },
+  scorecardRecordedP3: { color: Colors.primaryBlack, fontWeight: 'bold' },
+
+  bottomSheetSaveBtn: {
+    backgroundColor: Colors.primaryBlack,
+    borderRadius: BorderRadius.xl,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    ...Shadows.md,
+  },
+  bottomSheetSaveBtnText: { color: Colors.white, fontWeight: 'bold', fontSize: 15 },
 });
